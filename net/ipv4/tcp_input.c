@@ -727,6 +727,7 @@ static inline void tcp_rcv_rtt_measure_ts(struct sock *sk,
 			tcp_rcv_rtt_update(tp, delta, 0);
 	}
 }
+EXPORT_SYMBOL(tcp_rcv_space_adjust);
 
 /*
  * This function should be called every time data is copied to user space.
@@ -5463,9 +5464,20 @@ skip_this:
 		int copy = min_t(int, SKB_MAX_ORDER(0, 0), end - start);
 		struct sk_buff *nskb;
 
+#ifdef CONFIG_SECURITY_TEMPESTA
+		/*
+		 * This skb can be reused by Tempesta FW. Thus allocate
+		 * space for TCP headers.
+		 */
+		nskb = alloc_skb(copy + MAX_TCP_HEADER, GFP_ATOMIC);
+#else
 		nskb = alloc_skb(copy, GFP_ATOMIC);
+#endif
 		if (!nskb)
 			break;
+#ifdef CONFIG_SECURITY_TEMPESTA
+		skb_reserve(nskb, MAX_TCP_HEADER);
+#endif
 
 		memcpy(nskb->cb, skb->cb, sizeof(skb->cb));
 		skb_copy_decrypted(nskb, skb);
@@ -6228,6 +6240,21 @@ void tcp_rcv_established(struct sock *sk, struct sk_buff *skb)
 no_ack:
 			if (eaten)
 				kfree_skb_partial(skb, fragstolen);
+#ifdef CONFIG_SECURITY_TEMPESTA
+			/*
+			 * In the vanilla linux kernel, socket can't be
+			 * DEAD here. But in case when CONFIG_SECURITY_TEMPESTA
+			 * is enabled and Tempesta FW is loaded, socket can
+			 * became DEAD in case of error in `xmit` callback.
+			 * (tcp_data_snd_check->tcp_push_pending_frames->
+			 *  __tcp_push_pending_frames->tcp_write_xmit->
+			 *  tcp_tfw_sk_write_xmit->tcp_tfw_handle_error).
+			 *  When socket became DEAD, Tempesta FW zeroed
+			 *  `sk->sk_data_ready` pointer, so we should not call
+			 *  `tcp_data_ready` for DEAD socket.
+			 */
+			if (!sock_flag(sk, SOCK_DEAD))
+#endif
 			tcp_data_ready(sk);
 			return;
 		}

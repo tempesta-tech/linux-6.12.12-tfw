@@ -67,6 +67,13 @@ struct tls_rec;
 #define TLS_MAX_REC_SEQ_SIZE		8
 #define TLS_MAX_AAD_SIZE		TLS_AAD_SPACE_SIZE
 
+#ifdef CONFIG_SECURITY_TEMPESTA
+#define TLS_MAX_TAG_SZ			16
+/* Maximum size for required skb overhead: header, IV, tag. */
+#define TLS_MAX_OVERHEAD		(TLS_HEADER_SIZE + TLS_AAD_SPACE_SIZE \
+					 + TLS_MAX_TAG_SZ)
+#endif
+
 /* For CCM mode, the full 16-bytes of IV is made of '4' fields of given sizes.
  *
  * IV[16] = b0[1] || implicit nonce[4] || explicit nonce[8] || length[3]

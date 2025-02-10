@@ -530,7 +530,11 @@ void *crypto_create_tfm_node(struct crypto_alg *alg,
 	char *mem;
 	int err;
 
+#ifdef CONFIG_SECURITY_TEMPESTA
+	mem = crypto_alloc_tfmmem(alg, frontend, node, GFP_ATOMIC);
+#else
 	mem = crypto_alloc_tfmmem(alg, frontend, node, GFP_KERNEL);
+#endif
 	if (IS_ERR(mem))
 		goto out;
 
@@ -587,6 +591,9 @@ struct crypto_alg *crypto_find_alg(const char *alg_name,
 				   const struct crypto_type *frontend,
 				   u32 type, u32 mask)
 {
+	/* The function is slow and preemptable to be called in softirq. */
+	WARN_ON_ONCE(in_serving_softirq());
+
 	if (frontend) {
 		type &= frontend->maskclear;
 		mask &= frontend->maskclear;

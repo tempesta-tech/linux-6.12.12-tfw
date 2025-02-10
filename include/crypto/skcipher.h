@@ -299,6 +299,12 @@ struct crypto_sync_skcipher *crypto_alloc_sync_skcipher(const char *alg_name,
 struct crypto_lskcipher *crypto_alloc_lskcipher(const char *alg_name,
 						u32 type, u32 mask);
 
+#ifdef CONFIG_SECURITY_TEMPESTA
+struct crypto_alg *crypto_find_skcipher(const char *alg_name, u32 type,
+					u32 mask);
+struct crypto_skcipher *crypto_alloc_skcipher_atomic(struct crypto_alg *alg);
+#endif
+
 static inline struct crypto_tfm *crypto_skcipher_tfm(
 	struct crypto_skcipher *tfm)
 {
