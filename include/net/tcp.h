@@ -312,6 +312,7 @@ bool tcp_check_oom(const struct sock *sk, int shift);
 
 
 extern struct proto tcp_prot;
+extern struct proto tcpv6_prot;
 
 #define TCP_INC_STATS(net, field)	SNMP_INC_STATS((net)->mib.tcp_statistics, field)
 #define __TCP_INC_STATS(net, field)	__SNMP_INC_STATS((net)->mib.tcp_statistics, field)
@@ -352,6 +353,8 @@ ssize_t tcp_splice_read(struct socket *sk, loff_t *ppos,
 			struct pipe_inode_info *pipe, size_t len,
 			unsigned int flags);
 struct sk_buff *tcp_stream_alloc_skb(struct sock *sk, gfp_t gfp,
+				     bool force_schedule);
+struct sk_buff *tcp_stream_alloc_skb_size(struct sock *sk, int size, gfp_t gfp,
 				     bool force_schedule);
 
 static inline void tcp_dec_quickack_mode(struct sock *sk)
@@ -725,6 +728,21 @@ static inline int tcp_bound_to_half_wnd(struct tcp_sock *tp, int pktsize)
 
 /* tcp.c */
 void tcp_get_info(struct sock *, struct tcp_info *);
+
+/* Routines required by Tempesta FW. */
+void tcp_cleanup_rbuf(struct sock *sk, int copied);
+extern void tcp_push(struct sock *sk, int flags, int mss_now, int nonagle,
+		     int size_goal);
+extern int tcp_send_mss(struct sock *sk, int *size_goal, int flags);
+extern void tcp_mark_push(struct tcp_sock *tp, struct sk_buff *skb);
+extern void tcp_init_nondata_skb(struct sk_buff *skb, u32 seq, u8 flags);
+extern void tcp_queue_skb(struct sock *sk, struct sk_buff *skb);
+extern int tcp_set_skb_tso_segs(struct sk_buff *skb, unsigned int mss_now);
+extern void tcp_adjust_pcount(struct sock *sk, const struct sk_buff *skb,
+			      int decr);
+extern void tcp_fragment_tstamp(struct sk_buff *skb, struct sk_buff *skb2);
+extern void tcp_skb_fragment_eor(struct sk_buff *skb, struct sk_buff *skb2);
+extern int tcp_close_state(struct sock *sk);
 
 /* Read 'sendfile()'-style from a TCP socket */
 int tcp_read_sock(struct sock *sk, read_descriptor_t *desc,
@@ -2099,11 +2117,51 @@ static inline void tcp_write_collapse_fence(struct sock *sk)
 		TCP_SKB_CB(skb)->eor = 1;
 }
 
+#ifdef CONFIG_SECURITY_TEMPESTA
+/**
+ * This function is similar to `tcp_write_err` except that we send
+ * TCP RST to remote peer.  We call this function when an error occurs
+ * while sending data from which we cannot recover, so we close the
+ * connection with TCP RST.
+ */
+static inline void
+tcp_tfw_handle_error(struct sock *sk, int error)
+{
+	tcp_send_active_reset(sk, GFP_ATOMIC, SK_RST_REASON_ERROR);
+	sk->sk_err = error;
+	sk->sk_error_report(sk);
+	tcp_write_queue_purge(sk);
+	tcp_done(sk);
+}
+#endif
+
 static inline void tcp_push_pending_frames(struct sock *sk)
 {
+#ifdef CONFIG_SECURITY_TEMPESTA
+	unsigned int mss_now = 0;
+
+	if (sock_flag(sk, SOCK_TEMPESTA_HAS_DATA)
+	    && sk->sk_fill_write_queue)
+	{
+		int result;
+
+		mss_now = tcp_current_mss(sk);
+		result = sk->sk_fill_write_queue(sk, mss_now);
+		if (unlikely(result < 0)) {
+			tcp_tfw_handle_error(sk, result);
+			return;
+		}
+	}
+#endif
 	if (tcp_send_head(sk)) {
 		struct tcp_sock *tp = tcp_sk(sk);
 
+#ifdef CONFIG_SECURITY_TEMPESTA
+		if (mss_now != 0) {
+			int nonagle = TCP_NAGLE_OFF | TCP_NAGLE_PUSH;
+			__tcp_push_pending_frames(sk, mss_now, nonagle);
+		} else
+#endif
 		__tcp_push_pending_frames(sk, tcp_current_mss(sk), tp->nonagle);
 	}
 }

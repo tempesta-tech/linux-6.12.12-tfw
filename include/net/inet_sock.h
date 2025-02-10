@@ -87,7 +87,12 @@ struct inet_request_sock {
 				ecn_ok	   : 1,
 				acked	   : 1,
 				no_srccheck: 1,
+#ifdef CONFIG_SECURITY_TEMPESTA
+				smc_ok	   : 1,
+				aborted	   : 1;
+#else
 				smc_ok	   : 1;
+#endif
 	u32                     ir_mark;
 	union {
 		struct ip_options_rcu __rcu	*ireq_opt;

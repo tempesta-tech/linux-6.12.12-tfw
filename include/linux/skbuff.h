@@ -267,6 +267,12 @@
 	SKB_WITH_OVERHEAD((PAGE_SIZE << (ORDER)) - (X))
 #define SKB_MAX_HEAD(X)		(SKB_MAX_ORDER((X), 0))
 #define SKB_MAX_ALLOC		(SKB_MAX_ORDER(0, 2))
+#ifdef CONFIG_SECURITY_TEMPESTA
+#define SKB_MAX_HEADER	(PAGE_SIZE - MAX_TCP_HEADER			\
+			 - SKB_DATA_ALIGN(sizeof(struct sk_buff))	\
+			 - SKB_DATA_ALIGN(sizeof(struct skb_shared_info)) \
+			 - SKB_DATA_ALIGN(1))
+#endif
 
 /* return minimum truesize of one skb containing X bytes of data */
 #define SKB_TRUESIZE(X) ((X) +						\
@@ -877,6 +883,12 @@ struct sk_buff {
 				 * UDP receive path is one user.
 				 */
 				unsigned long		dev_scratch;
+#ifdef CONFIG_SECURITY_TEMPESTA
+                                struct {
+                                        __u8    present : 1;
+                                        __u8    tls_type : 7;
+                                } tfw_cb;
+#endif
 			};
 		};
 		struct rb_node		rbnode; /* used in netem, ip4 defrag, and tcp stack */
@@ -938,10 +950,16 @@ struct sk_buff {
 				fclone:2,
 				peeked:1,
 				head_frag:1,
+#ifdef CONFIG_SECURITY_TEMPESTA
+				skb_page:1,
+#endif
 				pfmemalloc:1,
 				pp_recycle:1; /* page_pool recycle indicator */
 #ifdef CONFIG_SKB_EXTENSIONS
 	__u8			active_extensions;
+#endif
+#ifdef CONFIG_SECURITY_TEMPESTA
+	__u8			tail_lock:1;
 #endif
 
 	/* Fields enclosed in headers group are copied
@@ -1112,6 +1130,42 @@ struct sk_buff {
 #define SKB_ALLOC_FCLONE	0x01
 #define SKB_ALLOC_RX		0x02
 #define SKB_ALLOC_NAPI		0x04
+
+#ifdef CONFIG_SECURITY_TEMPESTA
+static inline unsigned long
+skb_tfw_is_present(struct sk_buff *skb)
+{
+	return skb->tfw_cb.present;
+}
+
+static inline void
+skb_set_tfw_tls_type(struct sk_buff *skb, unsigned char tls_type)
+{
+	BUG_ON(tls_type > 0x7F);
+	skb->tfw_cb.present = 1;
+	skb->tfw_cb.tls_type = tls_type;
+}
+
+static inline unsigned char
+skb_tfw_tls_type(struct sk_buff *skb)
+{
+	return skb->tfw_cb.present ? skb->tfw_cb.tls_type : 0;
+}
+
+static inline void
+skb_copy_tfw_cb(struct sk_buff *dst, struct sk_buff *src)
+{
+	dst->dev = src->dev;
+}
+
+static inline void
+skb_clear_tfw_cb(struct sk_buff *skb)
+{
+	WARN_ON_ONCE(!skb->tfw_cb.present);
+	skb->dev = NULL;
+}
+
+#endif
 
 /**
  * skb_pfmemalloc - Test if the skb was allocated from PFMEMALLOC reserves
@@ -1298,6 +1352,7 @@ void kfree_skb_partial(struct sk_buff *skb, bool head_stolen);
 bool skb_try_coalesce(struct sk_buff *to, struct sk_buff *from,
 		      bool *fragstolen, int *delta_truesize);
 
+void *pg_skb_alloc(unsigned int size, gfp_t gfp_mask, int node);
 struct sk_buff *__alloc_skb(unsigned int size, gfp_t priority, int flags,
 			    int node);
 struct sk_buff *__build_skb(void *data, unsigned int frag_size);
@@ -2465,7 +2520,11 @@ struct sk_buff *skb_dequeue_tail(struct sk_buff_head *list);
 
 static inline bool skb_is_nonlinear(const struct sk_buff *skb)
 {
+#ifdef CONFIG_SECURITY_TEMPESTA
+	return skb->tail_lock || skb->data_len;
+#else
 	return skb->data_len;
+#endif
 }
 
 static inline unsigned int skb_headlen(const struct sk_buff *skb)
@@ -2820,6 +2879,20 @@ static inline unsigned int skb_headroom(const struct sk_buff *skb)
 {
 	return skb->data - skb->head;
 }
+
+#ifdef CONFIG_SECURITY_TEMPESTA
+/**
+ *	skb_tailroom_locked - bytes at buffer end
+ *	@skb: buffer to check
+ *
+ *	Return the number of bytes of free space at the tail of an sk_buff with
+ *	respect to tail locking only.
+ */
+static inline int skb_tailroom_locked(const struct sk_buff *skb)
+{
+	return skb->tail_lock ? 0 : skb->end - skb->tail;
+}
+#endif
 
 /**
  *	skb_tailroom - bytes at buffer end

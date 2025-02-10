@@ -84,6 +84,9 @@
 #include <linux/netfilter_bridge.h>
 #include <linux/netlink.h>
 #include <linux/tcp.h>
+#ifdef CONFIG_SECURITY_TEMPESTA
+#include <net/tcp.h>
+#endif
 
 static int
 ip_fragment(struct net *net, struct sock *sk, struct sk_buff *skb,
@@ -531,6 +534,15 @@ packet_routed:
 
 	/* TODO : should we use skb->sk here instead of sk ? */
 	skb->priority = READ_ONCE(sk->sk_priority);
+#ifdef CONFIG_SECURITY_TEMPESTA
+	/*
+	 * Tempesta can set skb->mark for some skbs. And moreover
+	 * sk_mark is never set for Tempesta sockets.
+	 */
+	if (sock_flag(sk, SOCK_TEMPESTA))
+		WARN_ON_ONCE(sk->sk_mark);
+	else
+#endif
 	skb->mark = READ_ONCE(sk->sk_mark);
 
 	res = ip_local_out(net, sk, skb);
@@ -693,7 +705,31 @@ struct sk_buff *ip_frag_next(struct sk_buff *skb, struct ip_frag_state *state)
 	}
 
 	/* Allocate buffer */
+#ifdef CONFIG_SECURITY_TEMPESTA
+	/*
+	 * Since Tempesta FW tries to reuse incoming SKBs containing the response
+	 * from the backend, sometimes we might encounter an SKB with quite a small
+	 * head room, which is not big enough to accommodate all the transport headers
+	 * and TLS overhead.
+	 * It usually the case when working over loopback, tun/tap, bridge or similar
+	 * interfaces with small MTU. The issue is specific to aforementioned ifaces
+	 * because the outgoing SKB would be injected back to the stack.
+	 * In order not to reallocate sk_buffs' headroom on RX path,
+	 * allocate and reserve a little bit more memory on TX path.
+	 * Even though it would introduce some memory overhead, it's still
+	 * cheaper than doing transformation.
+	 *
+	 * It seems like no such actions are required for IPv6 counterparts:
+	 * ip6_fragment() / ip6_frag_next() due to the fact that the
+	 * lowest acceptable MTU (1280) is sufficient to fit all the headers.
+	 *
+	 * When receiving SKBs from the outter world, the NIC driver should
+	 * allocate and reserve all necessary space by itself.
+	 */
+	skb2 = alloc_skb(len + state->hlen + MAX_TCP_HEADER, GFP_ATOMIC);
+#else
 	skb2 = alloc_skb(len + state->hlen + state->ll_rs, GFP_ATOMIC);
+#endif
 	if (!skb2)
 		return ERR_PTR(-ENOMEM);
 
@@ -702,7 +738,11 @@ struct sk_buff *ip_frag_next(struct sk_buff *skb, struct ip_frag_state *state)
 	 */
 
 	ip_copy_metadata(skb2, skb);
+#ifdef CONFIG_SECURITY_TEMPESTA
+	skb_reserve(skb2, MAX_TCP_HEADER);
+#else
 	skb_reserve(skb2, state->ll_rs);
+#endif
 	skb_put(skb2, len + state->hlen);
 	skb_reset_network_header(skb2);
 	skb2->transport_header = skb2->network_header + state->hlen;

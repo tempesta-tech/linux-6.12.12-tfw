@@ -4821,10 +4821,15 @@ static int lsm_sock_alloc(struct sock *sock, gfp_t gfp)
  */
 int security_sk_alloc(struct sock *sk, int family, gfp_t priority)
 {
+#ifndef CONFIG_SECURITY_TEMPESTA
 	int rc = lsm_sock_alloc(sk, priority);
 
 	if (unlikely(rc))
 		return rc;
+#else
+	int rc;
+	sk->sk_security = NULL;
+#endif
 	rc = call_int_hook(sk_alloc_security, sk, family, priority);
 	if (unlikely(rc))
 		security_sk_free(sk);

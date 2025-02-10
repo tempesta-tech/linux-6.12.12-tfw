@@ -30,6 +30,7 @@
 #include <linux/crash_dump.h>
 #include <linux/execmem.h>
 #include <linux/vmstat.h>
+#include <linux/tempesta.h>
 #include "internal.h"
 #include "slab.h"
 #include "shuffle.h"
@@ -2640,6 +2641,14 @@ void __init mm_core_init(void)
 	build_all_zonelists(NULL);
 	page_alloc_init_cpuhp();
 
+#ifdef CONFIG_SECURITY_TEMPESTA
+	/*
+	 * Tempesta: reserve memory at boot stage to get continous address
+	 * space. Do it while memblock is available.
+	 */
+	tempesta_reserve_pages();
+#endif
+
 	/*
 	 * page_ext requires contiguous pages,
 	 * bigger than MAX_PAGE_ORDER unless SPARSEMEM.
@@ -2669,6 +2678,12 @@ void __init mm_core_init(void)
 	init_espfix_bsp();
 	/* Should be run after espfix64 is set up. */
 	pti_init();
+
+#ifdef CONFIG_SECURITY_TEMPESTA
+	/* Try vmalloc() if the previous one failed. */
+	tempesta_reserve_vmpages();
+#endif
+
 	kmsan_init_runtime();
 	mm_cache_init();
 	execmem_init();

@@ -875,7 +875,12 @@ listen_overflow:
 	if (sk != req->rsk_listener)
 		__NET_INC_STATS(sock_net(sk), LINUX_MIB_TCPMIGRATEREQFAILURE);
 
+#ifdef CONFIG_SECURITY_TEMPESTA
+	if (!READ_ONCE(sock_net(sk)->ipv4.sysctl_tcp_abort_on_overflow)
+	    && !inet_rsk(req)->aborted) {
+#else
 	if (!READ_ONCE(sock_net(sk)->ipv4.sysctl_tcp_abort_on_overflow)) {
+#endif
 		inet_rsk(req)->acked = 1;
 		return NULL;
 	}
