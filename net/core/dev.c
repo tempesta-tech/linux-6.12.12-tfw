@@ -5289,6 +5289,27 @@ int netif_rx(struct sk_buff *skb)
 }
 EXPORT_SYMBOL(netif_rx);
 
+#ifdef CONFIG_SECURITY_TEMPESTA
+#include <linux/tempesta.h>
+
+static TempestaTxAction __rcu tempesta_tx_action = NULL;
+
+void
+tempesta_set_tx_action(TempestaTxAction action)
+{
+	rcu_assign_pointer(tempesta_tx_action, action);
+}
+EXPORT_SYMBOL(tempesta_set_tx_action);
+
+void
+tempesta_del_tx_action(void)
+{
+	rcu_assign_pointer(tempesta_tx_action, NULL);
+	synchronize_rcu();
+}
+EXPORT_SYMBOL(tempesta_del_tx_action);
+#endif
+
 static __latent_entropy void net_tx_action(void)
 {
 	struct softnet_data *sd = this_cpu_ptr(&softnet_data);
@@ -5320,6 +5341,20 @@ static __latent_entropy void net_tx_action(void)
 						 get_kfree_skb_cb(skb)->reason);
 		}
 	}
+
+#ifdef CONFIG_SECURITY_TEMPESTA
+	{
+		TempestaTxAction action;
+
+		rcu_read_lock();
+
+		action = rcu_dereference(tempesta_tx_action);
+		if (likely(action))
+			action();
+
+		rcu_read_unlock();
+	}
+#endif
 
 	if (sd->output_queue) {
 		struct Qdisc *head;

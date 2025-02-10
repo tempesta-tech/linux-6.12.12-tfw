@@ -29,6 +29,7 @@
 #include <linux/uts.h>
 #include <linux/utsname.h>
 #include <linux/ctype.h>
+#include <linux/sizes.h>
 #include <generated/utsversion.h>
 #include <generated/utsrelease.h>
 
@@ -83,6 +84,10 @@ static bool memmap_too_large;
  * It may be reduced by "mem=nn[KMG]" or "memmap=nn[KMG]" command line options.
  */
 static u64 mem_limit;
+
+#ifdef CONFIG_SECURITY_TEMPESTA
+static u64 tempesta_dbmem_sz;
+#endif
 
 /* Number of immovable memory regions */
 static int num_immovable_mem;
@@ -273,6 +278,17 @@ static void handle_mem_options(void)
 			if (mem_size < mem_limit)
 				mem_limit = mem_size;
 		}
+#ifdef CONFIG_SECURITY_TEMPESTA
+		else if (!strcmp(param, "tempesta_dbmem")) {
+			char *p = val;
+
+			tempesta_dbmem_sz = round_up(memparse(p, &p),
+						     HPAGE_SIZE);
+			/* Don't clamp memory region when reserved less 32M */
+			if (tempesta_dbmem_sz < SZ_32M)
+				tempesta_dbmem_sz = 0;
+		}
+#endif
 	}
 
 	free(tmp_cmdline);
@@ -528,6 +544,29 @@ process_gb_huge_pages(struct mem_vector *region, unsigned long image_size)
 	}
 }
 
+#ifdef CONFIG_SECURITY_TEMPESTA
+static void
+tempesta_clamp_region(struct mem_vector *region)
+{
+	if (!tempesta_dbmem_sz)
+		return;
+
+	if (region->size > tempesta_dbmem_sz) {
+		region->size -= tempesta_dbmem_sz;
+		/* Clamp only one region, it must enough. */
+		tempesta_dbmem_sz = 0;
+	}
+}
+
+static void
+post_process_region(struct mem_vector region, unsigned long image_size)
+{
+	/* Reserve space for Tempesta. */
+	tempesta_clamp_region(&region);
+	process_gb_huge_pages(&region, image_size);
+}
+#endif
+
 static u64 slots_fetch_random(void)
 {
 	unsigned long slot;
@@ -581,14 +620,22 @@ static void __process_mem_region(struct mem_vector *entry,
 
 		/* If nothing overlaps, store the region and return. */
 		if (!mem_avoid_overlap(&region, &overlap)) {
+#ifdef CONFIG_SECURITY_TEMPESTA
+			post_process_region(region, image_size);
+#else
 			process_gb_huge_pages(&region, image_size);
+#endif
 			return;
 		}
 
 		/* Store beginning of region if holds at least image_size. */
 		if (overlap.start >= region.start + image_size) {
 			region.size = overlap.start - region.start;
+#ifdef CONFIG_SECURITY_TEMPESTA
+			post_process_region(region, image_size);
+#else
 			process_gb_huge_pages(&region, image_size);
+#endif
 		}
 
 		/* Clip off the overlapping region and start over. */

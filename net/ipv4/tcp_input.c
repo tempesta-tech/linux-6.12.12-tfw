@@ -727,6 +727,7 @@ static inline void tcp_rcv_rtt_measure_ts(struct sock *sk,
 			tcp_rcv_rtt_update(tp, delta, 0);
 	}
 }
+EXPORT_SYMBOL(tcp_rcv_space_adjust);
 
 /*
  * This function should be called every time data is copied to user space.
@@ -5463,9 +5464,20 @@ skip_this:
 		int copy = min_t(int, SKB_MAX_ORDER(0, 0), end - start);
 		struct sk_buff *nskb;
 
+#ifdef CONFIG_SECURITY_TEMPESTA
+		/*
+		 * This skb can be reused by Tempesta FW. Thus allocate
+		 * space for TCP headers.
+		 */
+		nskb = alloc_skb(copy + MAX_TCP_HEADER, GFP_ATOMIC);
+#else
 		nskb = alloc_skb(copy, GFP_ATOMIC);
+#endif
 		if (!nskb)
 			break;
+#ifdef CONFIG_SECURITY_TEMPESTA
+		skb_reserve(nskb, MAX_TCP_HEADER);
+#endif
 
 		memcpy(nskb->cb, skb->cb, sizeof(skb->cb));
 		skb_copy_decrypted(nskb, skb);
