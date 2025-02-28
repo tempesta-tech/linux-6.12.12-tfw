@@ -22,6 +22,7 @@
 #define __TEMPESTA_H__
 
 #include <net/sock.h>
+#include <linux/lsm_hooks.h>
 
 typedef void (*TempestaTxAction)(void);
 
@@ -35,6 +36,17 @@ typedef struct {
 	unsigned long	addr;
 	unsigned long	pages; /* number of 4KB pages */
 } TempestaMapping;
+
+struct socket_tempesta {
+	void	*class_prvt;
+};
+
+extern struct lsm_blob_sizes tempesta_blob_sizes;
+
+static inline struct socket_tempesta *tempesta_sock(const struct sock *sock)
+{
+	return sock->sk_security + tempesta_blob_sizes.lbs_sock;
+}
 
 /* Security hooks. */
 int tempesta_new_clntsk(struct sock *newsk, struct sk_buff *skb);
