@@ -19,7 +19,6 @@
  * Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  */
 #include <linux/ipv6.h>
-#include <linux/lsm_hooks.h>
 #include <linux/spinlock.h>
 #include <linux/tempesta.h>
 
@@ -67,7 +66,7 @@ tempesta_new_clntsk(struct sock *newsk, struct sk_buff *skb)
 
 	TempestaOps *tops;
 
-	WARN_ON(newsk->sk_security);
+	WARN_ON(tempesta_sock(newsk)->class_prvt);
 
 	rcu_read_lock();
 
@@ -115,13 +114,18 @@ tempesta_sock_tcp_rcv(struct sock *sk, struct sk_buff *skb)
 	return r;
 }
 
-static struct security_hook_list tempesta_hooks[] __read_mostly = {
-	LSM_HOOK_INIT(socket_sock_rcv_skb, tempesta_sock_tcp_rcv),
+struct lsm_blob_sizes tempesta_blob_sizes __ro_after_init = {
+	.lbs_sock = sizeof(struct socket_tempesta),
 };
+EXPORT_SYMBOL(tempesta_blob_sizes);
 
 static const struct lsm_id tempesta_lsmid = {
 	.name = "tempesta",
-	.id = LSM_ID_BPF,
+	.id = LSM_ID_TEMPESTA,
+};
+
+static struct security_hook_list tempesta_hooks[] __read_mostly = {
+	LSM_HOOK_INIT(socket_sock_rcv_skb, tempesta_sock_tcp_rcv),
 };
 
 static __init int
@@ -133,8 +137,8 @@ tempesta_init(void)
 	return 0;
 }
 
-DEFINE_LSM(smack) = {
+DEFINE_LSM(tempesta) = {
 	.name = "tempesta",
-	.flags = LSM_FLAG_LEGACY_MAJOR | LSM_FLAG_EXCLUSIVE,
 	.init = tempesta_init,
+	.blobs = &tempesta_blob_sizes,
 };
