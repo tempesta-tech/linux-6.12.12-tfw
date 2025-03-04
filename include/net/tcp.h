@@ -354,9 +354,11 @@ ssize_t tcp_splice_read(struct socket *sk, loff_t *ppos,
 			unsigned int flags);
 struct sk_buff *tcp_stream_alloc_skb(struct sock *sk, gfp_t gfp,
 				     bool force_schedule);
+#ifdef CONFIG_SECURITY_TEMPESTA
+/* TODO: Remove after #2347. */
 struct sk_buff *tcp_stream_alloc_skb_size(struct sock *sk, int size, gfp_t gfp,
 				     bool force_schedule);
-
+#endif
 static inline void tcp_dec_quickack_mode(struct sock *sk)
 {
 	struct inet_connection_sock *icsk = inet_csk(sk);
