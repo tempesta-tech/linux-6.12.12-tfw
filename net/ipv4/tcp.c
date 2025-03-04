@@ -923,6 +923,8 @@ struct sk_buff *tcp_stream_alloc_skb(struct sock *sk, gfp_t gfp,
 }
 EXPORT_SYMBOL(tcp_stream_alloc_skb);
 
+#ifdef CONFIG_SECURITY_TEMPESTA
+/* TODO: Remove after #2347. */
 struct sk_buff *tcp_stream_alloc_skb_size(struct sock *sk, int size, gfp_t gfp,
 				     bool force_schedule)
 {
@@ -953,6 +955,7 @@ struct sk_buff *tcp_stream_alloc_skb_size(struct sock *sk, int size, gfp_t gfp,
 	return NULL;
 }
 EXPORT_SYMBOL(tcp_stream_alloc_skb_size);
+#endif
 
 static unsigned int tcp_xmit_size_goal(struct sock *sk, u32 mss_now,
 				       int large_allowed)

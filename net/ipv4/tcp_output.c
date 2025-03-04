@@ -1645,10 +1645,13 @@ int tcp_fragment(struct sock *sk, enum tcp_queue tcp_queue,
 	long limit;
 	int nlen;
 	u8 flags;
+#ifdef CONFIG_SECURITY_TEMPESTA
+	/* TODO: Remove after #2347. */
 	int nsize = skb_headlen(skb) - len;
 
 	if (nsize < 0)
 		nsize = 0;
+#endif
 
 	if (WARN_ON(len > skb->len))
 		return -EINVAL;
@@ -1673,7 +1676,12 @@ int tcp_fragment(struct sock *sk, enum tcp_queue tcp_queue,
 		return -ENOMEM;
 
 	/* Get a new skb... force flag on. */
+#ifdef CONFIG_SECURITY_TEMPESTA
+	/* TODO: Remove after #2347. */
 	buff = tcp_stream_alloc_skb_size(sk, nsize, gfp, true);
+#else
+	buff = tcp_stream_alloc_skb(sk, gfp, true);
+#endif
 	if (!buff)
 		return -ENOMEM; /* We'll just try again later. */
 	skb_copy_decrypted(buff, skb);
@@ -1681,7 +1689,12 @@ int tcp_fragment(struct sock *sk, enum tcp_queue tcp_queue,
 
 	sk_wmem_queued_add(sk, buff->truesize);
 	sk_mem_charge(sk, buff->truesize);
+#ifdef CONFIG_SECURITY_TEMPESTA
+	/* TODO: Remove after #2347. */
+	nlen = skb->len - len - nsize;
+#else
 	nlen = skb->len - len;
+#endif
 	buff->truesize += nlen;
 	skb->truesize -= nlen;
 #ifdef CONFIG_SECURITY_TEMPESTA
@@ -1742,6 +1755,8 @@ static int __pskb_trim_head(struct sk_buff *skb, int len)
 	struct skb_shared_info *shinfo;
 	int i, k, eat;
 
+#ifdef CONFIG_SECURITY_TEMPESTA
+	/* TODO: Remove after #2347. */
 	eat = min_t(int, len, skb_headlen(skb));
 	if (eat) {
 		__skb_pull(skb, eat);
@@ -1749,6 +1764,9 @@ static int __pskb_trim_head(struct sk_buff *skb, int len)
 		if (!len)
 			return 0;
 	}
+#else
+	DEBUG_NET_WARN_ON_ONCE(skb_headlen(skb));
+#endif
 	eat = len;
 	k = 0;
 	shinfo = skb_shinfo(skb);
@@ -2215,8 +2233,11 @@ static int tso_fragment(struct sock *sk, struct sk_buff *skb, unsigned int len,
 	struct sk_buff *buff;
 	u8 flags;
 
+#ifdef CONFIG_SECURITY_TEMPESTA
+	/* TODO: Remove after #2347. */
 	if (skb->len != skb->data_len)
 		return tcp_fragment(sk, TCP_FRAG_IN_WRITE_QUEUE, skb, len, mss_now, gfp);
+#endif
 
 	/* All of a TSO frame must be composed of paged data.  */
 	DEBUG_NET_WARN_ON_ONCE(skb->len != skb->data_len);
