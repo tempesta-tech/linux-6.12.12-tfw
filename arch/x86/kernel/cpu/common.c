@@ -2381,13 +2381,14 @@ void __init arch_cpu_finalize_init(void)
 			'0' + (boot_cpu_data.x86 > 6 ? 6 : boot_cpu_data.x86);
 	}
 
+#ifndef CONFIG_SECURITY_TEMPESTA
 	/*
 	 * Must be before alternatives because it might set or clear
 	 * feature bits.
 	 */
 	fpu__init_system();
 	fpu__init_cpu();
-
+#endif
 	/*
 	 * Ensure that access to the per CPU representation has the initial
 	 * boot CPU configuration.
