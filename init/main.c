@@ -114,6 +114,9 @@
 
 #include <kunit/test.h>
 
+bool fpu_was_inited = false;
+EXPORT_SYMBOL(fpu_was_inited);
+
 static int kernel_init(void *);
 
 /*
@@ -1069,6 +1072,8 @@ void start_kernel(void)
 	calibrate_delay();
 
 	arch_cpu_finalize_init();
+
+	fpu_was_inited = true;
 
 	pid_idr_init();
 	anon_vma_init();

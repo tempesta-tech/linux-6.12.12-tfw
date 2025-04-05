@@ -39,6 +39,8 @@
 
 #include <uapi/linux/kernel.h>
 
+extern bool fpu_was_inited;
+
 #define STACK_MAGIC	0xdeadbeef
 
 /* generic data direction definitions */
