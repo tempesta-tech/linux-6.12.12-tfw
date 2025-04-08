@@ -1014,6 +1014,7 @@ void start_kernel(void)
 	/* init some links before init_ISA_irqs() */
 	early_irq_init();
 #ifdef CONFIG_SECURITY_TEMPESTA
+	identify_boot_cpu();
 	fpu_init();
 #endif
 	init_IRQ();

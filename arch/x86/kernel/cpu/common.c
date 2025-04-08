@@ -1947,7 +1947,11 @@ void enable_sep_cpu(void)
 }
 #endif
 
+#ifdef CONFIG_SECURITY_TEMPESTA
+void __init identify_boot_cpu(void)
+#else
 static __init void identify_boot_cpu(void)
+#endif
 {
 	identify_cpu(&boot_cpu_data);
 	if (HAS_KERNEL_IBT && cpu_feature_enabled(X86_FEATURE_IBT))
@@ -2350,7 +2354,9 @@ void __init arch_cpu_finalize_init(void)
 {
 	struct cpuinfo_x86 *c = this_cpu_ptr(&cpu_info);
 
+#ifndef CONFIG_SECURITY_TEMPESTA
 	identify_boot_cpu();
+#endif
 
 	select_idle_routine();
 
