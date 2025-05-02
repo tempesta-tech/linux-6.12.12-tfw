@@ -29,6 +29,8 @@
 #ifdef CONFIG_SECURITY_TEMPESTA
 extern void __kernel_fpu_begin_mask(unsigned int kfpu_mask);
 extern void __kernel_fpu_end_bh(void);
+extern void kernel_fpu_begin_mask_no_bh(unsigned int kfpu_mask);
+extern void kernel_fpu_end_no_bh(void);
 #endif
 extern void kernel_fpu_begin_mask(unsigned int kfpu_mask);
 extern void kernel_fpu_end(void);

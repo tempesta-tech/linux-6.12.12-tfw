@@ -444,6 +444,19 @@ void __kernel_fpu_begin_mask(unsigned int kfpu_mask)
 		asm volatile ("fninit");
 }
 
+#ifdef CONFIG_SECURITY_TEMPESTA
+void kernel_fpu_begin_mask_no_bh(unsigned int kfpu_mask)
+{
+	/* SoftIRQ in the Tempesta kernel always enables FPU. */
+	if (likely(in_serving_softirq()))
+		return;
+	preempt_disable();
+
+	__kernel_fpu_begin_mask(kfpu_mask);
+}
+EXPORT_SYMBOL_GPL(kernel_fpu_begin_mask_no_bh);
+#endif
+
 void kernel_fpu_begin_mask(unsigned int kfpu_mask)
 {
 #ifdef CONFIG_SECURITY_TEMPESTA
@@ -485,6 +498,18 @@ void kernel_fpu_end(void)
 #endif
 }
 EXPORT_SYMBOL_GPL(kernel_fpu_end);
+
+#ifdef CONFIG_SECURITY_TEMPESTA
+void kernel_fpu_end_no_bh(void)
+{
+	if (likely(in_serving_softirq()))
+		return;
+	__kernel_fpu_end_bh();
+
+	preempt_enable();
+}
+EXPORT_SYMBOL_GPL(kernel_fpu_end_no_bh);
+#endif
 
 /*
  * Sync the FPU register state to current's memory register state when the
