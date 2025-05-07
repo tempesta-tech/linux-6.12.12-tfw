@@ -824,8 +824,8 @@ EXPORT_SYMBOL(pg_skb_alloc);
  *	%GFP_ATOMIC.
  */
 #ifndef CONFIG_SECURITY_TEMPESTA
-struct sk_buff *__alloc_skb(unsigned int size, gfp_t gfp_mask,
-			    int flags, int node)
+struct sk_buff *__alloc_skb(unsigned int size, gfp_t gfp_mask, int flags,
+			    int node)
 {
 	struct kmem_cache *cache;
 	struct sk_buff *skb;
@@ -892,8 +892,8 @@ nodata:
  * Tempesta: allocate skb on the same page with data to improve space locality
  * and make head data fragmentation easier.
  */
-struct sk_buff *__alloc_skb(unsigned int size, gfp_t gfp_mask,
-			    int flags, int node)
+struct sk_buff *__alloc_skb(unsigned int size, gfp_t gfp_mask, int flags,
+			    int node)
 {
 	struct sk_buff *skb;
 	struct page *pg;
