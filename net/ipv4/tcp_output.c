@@ -2875,7 +2875,6 @@ void tcp_chrono_stop(struct sock *sk, const enum tcp_chrono type)
 		tcp_chrono_set(tp, TCP_CHRONO_BUSY);
 }
 
-#ifndef CONFIG_SECURITY_TEMPESTA
 /* First skb in the write queue is smaller than ideal packet size.
  * Check if we can move payload from the second skb in the queue.
  */
@@ -2904,7 +2903,6 @@ static void tcp_grow_skb(struct sock *sk, struct sk_buff *skb, int amount)
 		tcp_eat_one_skb(sk, skb, next_skb);
 	}
 }
-#endif
 
 /* This routine writes packets to the network.  It advances the
  * send_head.  This happens as incoming acks open up the remote
@@ -2946,9 +2944,7 @@ static bool tcp_write_xmit(struct sock *sk, unsigned int mss_now, int nonagle,
 	max_segs = tcp_tso_segs(sk, mss_now);
 	while ((skb = tcp_send_head(sk))) {
 		unsigned int limit;
-#ifndef CONFIG_SECURITY_TEMPESTA
 		int missing_bytes;
-#endif
 
 		if (unlikely(tp->repair) && tp->repair_queue == TCP_SEND_QUEUE) {
 			/* "skb_mstamp_ns" is used as a start point for the retransmit timer */
@@ -2970,7 +2966,22 @@ static bool tcp_write_xmit(struct sock *sk, unsigned int mss_now, int nonagle,
 			else
 				break;
 		}
-#ifndef CONFIG_SECURITY_TEMPESTA
+#ifdef CONFIG_SECURITY_TEMPESTA
+		/*
+		 * tcp_grow_skb() logic overlaps with our own logic during
+		 * TLS encryption. Additionally, Tempesta still allocates SKBs
+		 * with a linear area, which makes calling tcp_grow_skb()
+		 * unnecessary even for plain HTTP.
+		 *
+		 * @TODO: issue #2347 - revise logic for plain HTTP.
+		 */
+		if (!sock_flag(sk, SOCK_TEMPESTA)) {
+			cwnd_quota = min(cwnd_quota, max_segs);
+			missing_bytes = cwnd_quota * mss_now - skb->len;
+			if (missing_bytes > 0)
+				tcp_grow_skb(sk, skb, missing_bytes);
+		}
+#else
 		cwnd_quota = min(cwnd_quota, max_segs);
 		missing_bytes = cwnd_quota * mss_now - skb->len;
 		if (missing_bytes > 0)
