@@ -4825,7 +4825,6 @@ int security_sk_alloc(struct sock *sk, int family, gfp_t priority)
 
 	if (unlikely(rc))
 		return rc;
-
 	rc = call_int_hook(sk_alloc_security, sk, family, priority);
 	if (unlikely(rc))
 		security_sk_free(sk);

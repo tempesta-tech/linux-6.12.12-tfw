@@ -312,7 +312,9 @@ bool tcp_check_oom(const struct sock *sk, int shift);
 
 
 extern struct proto tcp_prot;
+#ifdef CONFIG_SECURITY_TEMPESTA
 extern struct proto tcpv6_prot;
+#endif
 
 #define TCP_INC_STATS(net, field)	SNMP_INC_STATS((net)->mib.tcp_statistics, field)
 #define __TCP_INC_STATS(net, field)	__SNMP_INC_STATS((net)->mib.tcp_statistics, field)
@@ -732,19 +734,14 @@ static inline int tcp_bound_to_half_wnd(struct tcp_sock *tp, int pktsize)
 void tcp_get_info(struct sock *, struct tcp_info *);
 
 /* Routines required by Tempesta FW. */
-void tcp_cleanup_rbuf(struct sock *sk, int copied);
-extern void tcp_push(struct sock *sk, int flags, int mss_now, int nonagle,
-		     int size_goal);
-extern int tcp_send_mss(struct sock *sk, int *size_goal, int flags);
-extern void tcp_mark_push(struct tcp_sock *tp, struct sk_buff *skb);
-extern void tcp_init_nondata_skb(struct sk_buff *skb, u32 seq, u8 flags);
-extern void tcp_queue_skb(struct sock *sk, struct sk_buff *skb);
-extern int tcp_set_skb_tso_segs(struct sk_buff *skb, unsigned int mss_now);
-extern void tcp_adjust_pcount(struct sock *sk, const struct sk_buff *skb,
+#ifdef CONFIG_SECURITY_TEMPESTA
+int tcp_set_skb_tso_segs(struct sk_buff *skb, unsigned int mss_now);
+void tcp_adjust_pcount(struct sock *sk, const struct sk_buff *skb,
 			      int decr);
-extern void tcp_fragment_tstamp(struct sk_buff *skb, struct sk_buff *skb2);
-extern void tcp_skb_fragment_eor(struct sk_buff *skb, struct sk_buff *skb2);
-extern int tcp_close_state(struct sock *sk);
+void tcp_fragment_tstamp(struct sk_buff *skb, struct sk_buff *skb2);
+void tcp_skb_fragment_eor(struct sk_buff *skb, struct sk_buff *skb2);
+int tcp_close_state(struct sock *sk);
+#endif
 
 /* Read 'sendfile()'-style from a TCP socket */
 int tcp_read_sock(struct sock *sk, read_descriptor_t *desc,
