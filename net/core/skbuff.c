@@ -1753,12 +1753,8 @@ void napi_skb_free_stolen_head(struct sk_buff *skb)
 		skb_orphan(skb);
 		skb->slow_gro = 0;
 	}
-#ifdef CONFIG_SECURITY_TEMPESTA
-	if (skb->skb_page)
-		put_page(virt_to_page(skb));
-	else
-#endif
-		napi_skb_cache_put(skb);
+
+	napi_skb_cache_put(skb);
 }
 
 void napi_consume_skb(struct sk_buff *skb, int budget)
