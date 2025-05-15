@@ -1616,7 +1616,7 @@ tcp_skb_unclone(struct sock *sk, struct sk_buff *skb, gfp_t pri)
 {
 	int r, delta_truesize = skb->truesize;
 
-	if ((r = skb_unclone(skb, pri)))
+	if ((r = skb_unclone_keeptruesize(skb, pri)))
 		return r;
 
 	delta_truesize -= skb->truesize;
