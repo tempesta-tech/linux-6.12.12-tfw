@@ -1605,30 +1605,6 @@ static void tcp_insert_write_queue_after(struct sk_buff *skb,
 		tcp_rbtree_insert(&sk->tcp_rtx_queue, buff);
 }
 
-/**
- * Tempesta uses page fragments for all skb allocations, so if an skb was
- * allocated in standard Linux way, then pskb_expand_head( , 0, 0, ) may
- * return larger skb and we have to adjust skb->truesize and memory accounting
- * for TCP write queue.
- */
-static int
-tcp_skb_unclone(struct sock *sk, struct sk_buff *skb, gfp_t pri)
-{
-	int r, delta_truesize = skb->truesize;
-
-	if ((r = skb_unclone(skb, pri)))
-		return r;
-
-	delta_truesize -= skb->truesize;
-	sk->sk_wmem_queued -= delta_truesize;
-	if (delta_truesize > 0)
-		sk_mem_uncharge(sk, delta_truesize);
-	else
-		sk_mem_charge(sk, -delta_truesize);
-
-	return 0;
-}
-
 /* Function to create two new TCP segments.  Shrinks the given segment
  * to the specified size and appends a new segment with the rest of the
  * packet to the list.  This won't be called frequently, I hope.
@@ -1671,7 +1647,7 @@ int tcp_fragment(struct sock *sk, enum tcp_queue tcp_queue,
 		return -ENOMEM;
 	}
 
-	if (tcp_skb_unclone(sk, skb, gfp))
+	if (skb_unclone_keeptruesize(skb, gfp))
 		return -ENOMEM;
 
 	/* Get a new skb... force flag on. */
@@ -1797,7 +1773,7 @@ int tcp_trim_head(struct sock *sk, struct sk_buff *skb, u32 len)
 {
 	u32 delta_truesize;
 
-	if (tcp_skb_unclone(sk, skb, GFP_ATOMIC))
+	if (skb_unclone_keeptruesize(skb, GFP_ATOMIC))
 		return -ENOMEM;
 
 	delta_truesize = __pskb_trim_head(skb, len);
@@ -3592,7 +3568,7 @@ start:
 				 cur_mss, GFP_ATOMIC))
 			return -ENOMEM; /* We'll try again later. */
 	} else {
-		if (tcp_skb_unclone(sk, skb, GFP_ATOMIC))
+		if (skb_unclone_keeptruesize(skb, GFP_ATOMIC))
 			return -ENOMEM;
 
 		diff = tcp_skb_pcount(skb);
