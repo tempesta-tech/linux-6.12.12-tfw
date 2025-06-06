@@ -63,4 +63,9 @@ void tempesta_reserve_pages(void);
 void tempesta_reserve_vmpages(void);
 int tempesta_get_mapping(int node, TempestaMapping **tm);
 
+/* Optimized timestamp access in softirq context */
+#ifdef CONFIG_SECURITY_TEMPESTA
+extern long softirq_current_timestamp(void);
+#endif
+
 #endif /* __TEMPESTA_H__ */

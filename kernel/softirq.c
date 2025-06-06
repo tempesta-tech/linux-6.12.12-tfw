@@ -25,6 +25,7 @@
 #include <linux/smp.h>
 #include <linux/smpboot.h>
 #include <linux/tick.h>
+#include <linux/time.h>
 #include <linux/irq.h>
 #include <linux/wait_bit.h>
 #include <linux/workqueue.h>
@@ -61,6 +62,11 @@ EXPORT_PER_CPU_SYMBOL(irq_stat);
 static struct softirq_action softirq_vec[NR_SOFTIRQS] __cacheline_aligned_in_smp;
 
 DEFINE_PER_CPU(struct task_struct *, ksoftirqd);
+
+#ifdef CONFIG_SECURITY_TEMPESTA
+/* Per-CPU cached timestamp for current softirq batch */
+static DEFINE_PER_CPU(long, softirq_timestamp_cache);
+#endif
 
 const char * const softirq_to_name[NR_SOFTIRQS] = {
 	"HI", "TIMER", "NET_RX", "NET_TX", "BLOCK", "IRQ_POLL",
@@ -538,6 +544,12 @@ static void handle_softirqs(bool ksirqd)
 	softirq_handle_begin();
 	in_hardirq = lockdep_softirq_start();
 #ifdef CONFIG_SECURITY_TEMPESTA
+	/* Cache timestamp for this softirq batch */
+	{
+		struct timespec64 ts;
+		ktime_get_real_ts64(&ts);
+		this_cpu_write(softirq_timestamp_cache, ts.tv_sec);
+	}
 	__kernel_fpu_begin_mask(KFPU_MXCSR);
 #endif
 	account_softirq_enter(current);
@@ -708,6 +720,14 @@ void raise_softirq(unsigned int nr)
 	local_irq_restore(flags);
 }
 EXPORT_SYMBOL(raise_softirq);
+
+#ifdef CONFIG_SECURITY_TEMPESTA
+long softirq_current_timestamp(void)
+{
+	return this_cpu_read(softirq_timestamp_cache);
+}
+EXPORT_SYMBOL(softirq_current_timestamp);
+#endif
 
 void __raise_softirq_irqoff(unsigned int nr)
 {

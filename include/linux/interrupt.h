@@ -616,6 +616,11 @@ extern void __raise_softirq_irqoff(unsigned int nr);
 extern void raise_softirq_irqoff(unsigned int nr);
 void raise_softirq(unsigned int nr);
 
+#ifdef CONFIG_SECURITY_TEMPESTA
+/* Tempesta-specific optimized timestamp access */
+extern long softirq_current_timestamp(void);
+#endif
+
 DECLARE_PER_CPU(struct task_struct *, ksoftirqd);
 
 static inline struct task_struct *this_cpu_ksoftirqd(void)
