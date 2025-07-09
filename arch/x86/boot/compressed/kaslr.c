@@ -29,7 +29,9 @@
 #include <linux/uts.h>
 #include <linux/utsname.h>
 #include <linux/ctype.h>
+#ifdef CONFIG_SECURITY_TEMPESTA
 #include <linux/sizes.h>
+#endif
 #include <generated/utsversion.h>
 #include <generated/utsrelease.h>
 

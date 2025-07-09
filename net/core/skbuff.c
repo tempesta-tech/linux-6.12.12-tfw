@@ -626,8 +626,7 @@ out:
 
 	return obj;
 }
-#endif
-
+#else
 /*
  * Chunks of size 128B, 256B, 512B, 1KB and 2KB.
  * Typical sk_buff requires ~272B or ~552B (for fclone),
@@ -799,6 +798,7 @@ assign_tail_chunks:
 #undef PREEMPT_CTX_ENABLE
 }
 EXPORT_SYMBOL(pg_skb_alloc);
+#endif
 
 /* 	Allocate a new skbuff. We do this ourselves so we can fill in a few
  *	'private' fields and also do memory statistics to find all the

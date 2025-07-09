@@ -27,7 +27,9 @@
 #include <linux/slab.h>
 #include <linux/workqueue.h>
 
+#ifdef CONFIG_SECURITY_TEMPESTA
 #include "internal.h"
+#endif
 
 static unsigned int cryptd_max_cpu_qlen = 1000;
 module_param(cryptd_max_cpu_qlen, uint, 0);

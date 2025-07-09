@@ -1616,22 +1616,22 @@ int tcp_fragment(struct sock *sk, enum tcp_queue tcp_queue,
 {
 	struct tcp_sock *tp = tcp_sk(sk);
 	struct sk_buff *buff;
-	int old_factor;
+	int nsize, old_factor;
 	long limit;
 	int nlen;
 	u8 flags;
-#ifdef CONFIG_SECURITY_TEMPESTA
-	/* TODO: Remove after #2347. */
-	int nsize = skb_headlen(skb) - len;
-
-	if (nsize < 0)
-		nsize = 0;
-#endif
 
 	if (WARN_ON(len > skb->len))
 		return -EINVAL;
 
+#ifdef CONFIG_SECURITY_TEMPESTA
+	/* TODO: Remove after #2347. */
+	nsize = skb_headlen(skb) - len;
+	if (nsize < 0)
+		nsize = 0;
+#else
 	DEBUG_NET_WARN_ON_ONCE(skb_headlen(skb));
+#endif
 
 	/* tcp_sendmsg() can overshoot sk_wmem_queued by one full size skb.
 	 * We need some allowance to not penalize applications setting small
