@@ -2131,14 +2131,14 @@ tcp_tfw_handle_error(struct sock *sk, int error)
 	sk->sk_error_report(sk);
 	tcp_write_queue_purge(sk);
 	/*
-	 * SOCK_TEMPESTA_IS_CLOSING is set from `ss_do_close`
-	 * or `ss_do_shutdown` function from Tempesta FW code.
-	 * We should not call `tcp_done` if error occurs during
-	 * one of this function, just set socket state to TCP_CLOSE,
+	 * SOCK_TEMPESTA_IN_USE is set when function is called
+	 * from Tempesta FW code.
+	 * We should not call `tcp_done` if error occurs when
+	 * Tempesta FW uses socket, just set socket state to TCP_CLOSE,
 	 * clear timers and socket write queue. Socket will be
-	 * closed in one of this function.
+	 * closed later from Tempesta FW code.
 	 */
-	if (unlikely(sock_flag(sk, SOCK_TEMPESTA_IS_CLOSING))) {
+	if (unlikely(sock_flag(sk, SOCK_TEMPESTA_IN_USE))) {
 		tcp_set_state(sk, TCP_CLOSE);
 		tcp_clear_xmit_timers(sk);
 	} else {
