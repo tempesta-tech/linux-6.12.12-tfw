@@ -1947,7 +1947,11 @@ void enable_sep_cpu(void)
 }
 #endif
 
+#ifdef CONFIG_SECURITY_TEMPESTA
+void __init identify_boot_cpu(void)
+#else
 static __init void identify_boot_cpu(void)
+#endif
 {
 	identify_cpu(&boot_cpu_data);
 	if (HAS_KERNEL_IBT && cpu_feature_enabled(X86_FEATURE_IBT))
@@ -2350,7 +2354,9 @@ void __init arch_cpu_finalize_init(void)
 {
 	struct cpuinfo_x86 *c = this_cpu_ptr(&cpu_info);
 
+#ifndef CONFIG_SECURITY_TEMPESTA
 	identify_boot_cpu();
+#endif
 
 	select_idle_routine();
 
@@ -2381,13 +2387,14 @@ void __init arch_cpu_finalize_init(void)
 			'0' + (boot_cpu_data.x86 > 6 ? 6 : boot_cpu_data.x86);
 	}
 
+#ifndef CONFIG_SECURITY_TEMPESTA
 	/*
 	 * Must be before alternatives because it might set or clear
 	 * feature bits.
 	 */
 	fpu__init_system();
 	fpu__init_cpu();
-
+#endif
 	/*
 	 * Ensure that access to the per CPU representation has the initial
 	 * boot CPU configuration.

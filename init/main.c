@@ -899,6 +899,14 @@ static void __init early_numa_node_init(void)
 #endif
 }
 
+#ifdef CONFIG_SECURITY_TEMPESTA
+static void __init fpu_init(void)
+{
+	fpu__init_system();
+	fpu__init_cpu();
+}
+#endif
+
 asmlinkage __visible __init __no_sanitize_address __noreturn __no_stack_protector
 void start_kernel(void)
 {
@@ -1005,6 +1013,10 @@ void start_kernel(void)
 	context_tracking_init();
 	/* init some links before init_ISA_irqs() */
 	early_irq_init();
+#ifdef CONFIG_SECURITY_TEMPESTA
+	identify_boot_cpu();
+	fpu_init();
+#endif
 	init_IRQ();
 	tick_init();
 	rcu_init_nohz();

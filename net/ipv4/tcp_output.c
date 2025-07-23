@@ -40,6 +40,9 @@
 #include <net/tcp.h>
 #include <net/mptcp.h>
 #include <net/proto_memory.h>
+#ifdef CONFIG_SECURITY_TEMPESTA
+#include <net/tls.h>
+#endif
 
 #include <linux/compiler.h>
 #include <linux/gfp.h>
@@ -158,6 +161,9 @@ void tcp_cwnd_restart(struct sock *sk, s32 delta)
 	tp->snd_cwnd_stamp = tcp_jiffies32;
 	tp->snd_cwnd_used = 0;
 }
+#ifdef CONFIG_SECURITY_TEMPESTA
+EXPORT_SYMBOL(tcp_cwnd_restart);
+#endif
 
 /* Congestion state accounting after a packet has been sent. */
 static void tcp_event_data_sent(struct tcp_sock *tp,
@@ -1505,7 +1511,7 @@ static void tcp_queue_skb(struct sock *sk, struct sk_buff *skb)
 }
 
 /* Initialize TSO segments for a packet. */
-static int tcp_set_skb_tso_segs(struct sk_buff *skb, unsigned int mss_now)
+int tcp_set_skb_tso_segs(struct sk_buff *skb, unsigned int mss_now)
 {
 	int tso_segs;
 
@@ -1522,11 +1528,12 @@ static int tcp_set_skb_tso_segs(struct sk_buff *skb, unsigned int mss_now)
 	tcp_skb_pcount_set(skb, tso_segs);
 	return tso_segs;
 }
+EXPORT_SYMBOL(tcp_set_skb_tso_segs);
 
 /* Pcount in the middle of the write queue got changed, we need to do various
  * tweaks to fix counters
  */
-static void tcp_adjust_pcount(struct sock *sk, const struct sk_buff *skb, int decr)
+void tcp_adjust_pcount(struct sock *sk, const struct sk_buff *skb, int decr)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
 
@@ -1550,6 +1557,7 @@ static void tcp_adjust_pcount(struct sock *sk, const struct sk_buff *skb, int de
 
 	tcp_verify_left_out(tp);
 }
+EXPORT_SYMBOL(tcp_adjust_pcount);
 
 static bool tcp_has_tx_tstamp(const struct sk_buff *skb)
 {
@@ -1557,7 +1565,7 @@ static bool tcp_has_tx_tstamp(const struct sk_buff *skb)
 		(skb_shinfo(skb)->tx_flags & SKBTX_ANY_TSTAMP);
 }
 
-static void tcp_fragment_tstamp(struct sk_buff *skb, struct sk_buff *skb2)
+void tcp_fragment_tstamp(struct sk_buff *skb, struct sk_buff *skb2)
 {
 	struct skb_shared_info *shinfo = skb_shinfo(skb);
 
@@ -1573,12 +1581,14 @@ static void tcp_fragment_tstamp(struct sk_buff *skb, struct sk_buff *skb2)
 		TCP_SKB_CB(skb)->txstamp_ack = 0;
 	}
 }
+EXPORT_SYMBOL(tcp_fragment_tstamp);
 
-static void tcp_skb_fragment_eor(struct sk_buff *skb, struct sk_buff *skb2)
+void tcp_skb_fragment_eor(struct sk_buff *skb, struct sk_buff *skb2)
 {
 	TCP_SKB_CB(skb2)->eor = TCP_SKB_CB(skb)->eor;
 	TCP_SKB_CB(skb)->eor = 0;
 }
+EXPORT_SYMBOL(tcp_skb_fragment_eor);
 
 /* Insert buff after skb on the write or rtx queue of sk.  */
 static void tcp_insert_write_queue_after(struct sk_buff *skb,
@@ -1586,6 +1596,9 @@ static void tcp_insert_write_queue_after(struct sk_buff *skb,
 					 struct sock *sk,
 					 enum tcp_queue tcp_queue)
 {
+#ifdef CONFIG_SECURITY_TEMPESTA
+	skb_copy_tfw_cb(buff, skb);
+#endif
 	if (tcp_queue == TCP_FRAG_IN_WRITE_QUEUE)
 		__skb_queue_after(&sk->sk_write_queue, skb, buff);
 	else
@@ -1603,7 +1616,7 @@ int tcp_fragment(struct sock *sk, enum tcp_queue tcp_queue,
 {
 	struct tcp_sock *tp = tcp_sk(sk);
 	struct sk_buff *buff;
-	int old_factor;
+	int nsize, old_factor;
 	long limit;
 	int nlen;
 	u8 flags;
@@ -1611,7 +1624,14 @@ int tcp_fragment(struct sock *sk, enum tcp_queue tcp_queue,
 	if (WARN_ON(len > skb->len))
 		return -EINVAL;
 
+#ifdef CONFIG_SECURITY_TEMPESTA
+	/* TODO: Remove after #2347. */
+	nsize = skb_headlen(skb) - len;
+	if (nsize < 0)
+		nsize = 0;
+#else
 	DEBUG_NET_WARN_ON_ONCE(skb_headlen(skb));
+#endif
 
 	/* tcp_sendmsg() can overshoot sk_wmem_queued by one full size skb.
 	 * We need some allowance to not penalize applications setting small
@@ -1631,7 +1651,12 @@ int tcp_fragment(struct sock *sk, enum tcp_queue tcp_queue,
 		return -ENOMEM;
 
 	/* Get a new skb... force flag on. */
+#ifdef CONFIG_SECURITY_TEMPESTA
+	/* TODO: Remove after #2347. */
+	buff = tcp_stream_alloc_skb_size(sk, nsize, gfp, true);
+#else
 	buff = tcp_stream_alloc_skb(sk, gfp, true);
+#endif
 	if (!buff)
 		return -ENOMEM; /* We'll just try again later. */
 	skb_copy_decrypted(buff, skb);
@@ -1639,9 +1664,17 @@ int tcp_fragment(struct sock *sk, enum tcp_queue tcp_queue,
 
 	sk_wmem_queued_add(sk, buff->truesize);
 	sk_mem_charge(sk, buff->truesize);
+#ifdef CONFIG_SECURITY_TEMPESTA
+	/* TODO: Remove after #2347. */
+	nlen = skb->len - len - nsize;
+#else
 	nlen = skb->len - len;
+#endif
 	buff->truesize += nlen;
 	skb->truesize -= nlen;
+#ifdef CONFIG_SECURITY_TEMPESTA
+	buff->mark = skb->mark;
+#endif
 
 	/* Correct the sequence numbers. */
 	TCP_SKB_CB(buff)->seq = TCP_SKB_CB(skb)->seq + len;
@@ -1697,7 +1730,18 @@ static int __pskb_trim_head(struct sk_buff *skb, int len)
 	struct skb_shared_info *shinfo;
 	int i, k, eat;
 
+#ifdef CONFIG_SECURITY_TEMPESTA
+	/* TODO: Remove after #2347. */
+	eat = min_t(int, len, skb_headlen(skb));
+	if (eat) {
+		__skb_pull(skb, eat);
+		len -= eat;
+		if (!len)
+			return 0;
+	}
+#else
 	DEBUG_NET_WARN_ON_ONCE(skb_headlen(skb));
+#endif
 	eat = len;
 	k = 0;
 	shinfo = skb_shinfo(skb);
@@ -1889,6 +1933,7 @@ unsigned int tcp_current_mss(struct sock *sk)
 
 	return mss_now;
 }
+EXPORT_SYMBOL(tcp_current_mss);
 
 /* RFC2861, slow part. Adjust cwnd, after it was not full during one rto.
  * As additional protections, we do not touch cwnd in retransmission phases,
@@ -2157,11 +2202,17 @@ static bool tcp_snd_wnd_test(const struct tcp_sock *tp,
  * packet has never been sent out before (and thus is not cloned).
  */
 static int tso_fragment(struct sock *sk, struct sk_buff *skb, unsigned int len,
-			unsigned int mss_now, gfp_t gfp)
+		 unsigned int mss_now, gfp_t gfp)
 {
 	int nlen = skb->len - len;
 	struct sk_buff *buff;
 	u8 flags;
+
+#ifdef CONFIG_SECURITY_TEMPESTA
+	/* TODO: Remove after #2347. */
+	if (skb->len != skb->data_len)
+		return tcp_fragment(sk, TCP_FRAG_IN_WRITE_QUEUE, skb, len, mss_now, gfp);
+#endif
 
 	/* All of a TSO frame must be composed of paged data.  */
 	DEBUG_NET_WARN_ON_ONCE(skb->len != skb->data_len);
@@ -2176,6 +2227,9 @@ static int tso_fragment(struct sock *sk, struct sk_buff *skb, unsigned int len,
 	sk_mem_charge(sk, buff->truesize);
 	buff->truesize += nlen;
 	skb->truesize -= nlen;
+#ifdef CONFIG_SECURITY_TEMPESTA
+	buff->mark = skb->mark;
+#endif
 
 	/* Correct the sequence numbers. */
 	TCP_SKB_CB(buff)->seq = TCP_SKB_CB(skb)->seq + len;
@@ -2346,12 +2400,90 @@ static bool tcp_can_coalesce_send_queue_head(struct sock *sk, int len)
 
 		if (tcp_has_tx_tstamp(skb) || !tcp_skb_can_collapse(skb, next))
 			return false;
+#ifdef CONFIG_SECURITY_TEMPESTA
+		/* Do not coalesce tempesta skbs with tls type or set mark. */
+		if ((next != ((struct sk_buff *)&(sk)->sk_write_queue))
+		    && ((skb_tfw_tls_type(skb) != skb_tfw_tls_type(next))
+			|| (sock_flag(sk, SOCK_TEMPESTA)
+			    && (skb->mark != next->mark))))
+			return false;
+#endif
 
 		len -= skb->len;
 	}
 
 	return true;
 }
+
+#ifdef CONFIG_SECURITY_TEMPESTA
+
+/**
+ * The next funtion is called from places: from `tcp_write_xmit`
+ * (a usual case) and from `tcp_write_wakeup`. In other places where
+ * `tcp_transmit_skb` is called we deal with special TCP skbs or skbs
+ * not from tcp send queue.
+ */
+static int
+tcp_tfw_sk_write_xmit(struct sock *sk, struct sk_buff *skb,
+		      unsigned int mss_now)
+{
+	struct tcp_sock *tp = tcp_sk(sk);
+	unsigned int in_flight = tcp_packets_in_flight(tp);
+	unsigned int send_win, cong_win;
+	unsigned int limit;
+	int result;
+
+	/*
+	 * If skb has tls type, but `sk->sk_write_xmit` is equal to zero
+	 * it means that connection was already dropped. This skb is
+	 * not valid, because we should recalculate sequence numbers of
+	 * for this skb in `sk_write_xmit`, and if we don't call it skb
+	 * will have incorrect sequence numbers. So we should return
+	 * error code here and close socket using `tcp_tfw_handle_error`.
+	 */
+	if (!skb_tfw_tls_type(skb))
+		return 0;
+	else if (!sk->sk_write_xmit)
+		return -EPIPE;
+
+	/* Should be checked early. */
+	BUG_ON(after(TCP_SKB_CB(skb)->seq, tcp_wnd_end(tp)));
+	cong_win = (tp->snd_cwnd - in_flight) * mss_now;
+	send_win = tcp_wnd_end(tp) - TCP_SKB_CB(skb)->seq;
+	/*
+	 * A receive side doesn’t start to process a TLS recod until
+	 * it’s fully read from a socket. Too small record size causes
+	 * too much overhead. On the other side too large record size
+	 * can lead to significant delays on receive side if current
+	 * TCP congestion and/or the receiver’s advertised window are
+	 * smaller than a TLS record size.
+	 */
+	limit = min3(cong_win, send_win, (unsigned int)TLS_MAX_PAYLOAD_SIZE);
+
+	result = sk->sk_write_xmit(sk, skb, mss_now, limit);
+	if (unlikely(result))
+		return result;
+
+	/* Fix up TSO segments after TLS overhead. */
+	tcp_set_skb_tso_segs(skb, mss_now);
+	return 0;
+}
+
+/*
+ * We should recalculate max_size, and split skb according
+ * new limit, because we add extra TLS_MAX_OVERHEAD bytes
+ * during tls encription. If we don't adjust it, we push
+ * skb with incorrect length to network.
+ */
+#define TFW_ADJUST_TLS_OVERHEAD(max_size)			\
+do {								\
+	if (max_size > TLS_MAX_PAYLOAD_SIZE + TLS_MAX_OVERHEAD)	\
+		max_size = TLS_MAX_PAYLOAD_SIZE;		\
+	else							\
+		max_size -= TLS_MAX_OVERHEAD;			\
+} while(0)
+
+#endif
 
 static int tcp_clone_payload(struct sock *sk, struct sk_buff *to,
 			     int probe_size)
@@ -2439,6 +2571,9 @@ static int tcp_mtu_probe(struct sock *sk)
 	int copy, len;
 	int mss_now;
 	int interval;
+#ifdef CONFIG_SECURITY_TEMPESTA
+	int result;
+#endif
 
 	/* Not currently probing/verifying,
 	 * not in recovery,
@@ -2491,6 +2626,9 @@ static int tcp_mtu_probe(struct sock *sk)
 			return 0;
 	}
 
+#ifdef CONFIG_SECURITY_TEMPESTA
+	TFW_ADJUST_TLS_OVERHEAD(probe_size);
+#endif
 	if (!tcp_can_coalesce_send_queue_head(sk, probe_size))
 		return -1;
 
@@ -2516,6 +2654,10 @@ static int tcp_mtu_probe(struct sock *sk)
 	TCP_SKB_CB(nskb)->end_seq = TCP_SKB_CB(skb)->seq + probe_size;
 	TCP_SKB_CB(nskb)->tcp_flags = TCPHDR_ACK;
 
+#ifdef CONFIG_SECURITY_TEMPESTA
+	skb_copy_tfw_cb(nskb, skb);
+#endif
+
 	tcp_insert_write_queue_before(nskb, skb, sk);
 	tcp_highest_sack_replace(sk, skb, nskb);
 
@@ -2539,6 +2681,24 @@ static int tcp_mtu_probe(struct sock *sk)
 			break;
 	}
 	tcp_init_tso_segs(nskb, nskb->len);
+
+#ifdef CONFIG_SECURITY_TEMPESTA
+	if (!skb_tfw_tls_type(nskb))
+		goto transmit;
+	else if (!sk->sk_write_xmit) {
+		tcp_tfw_handle_error(sk, -EPIPE);
+		return 0;
+	}
+
+	result = sk->sk_write_xmit(sk, nskb, probe_size, probe_size);
+	if (unlikely(result)) {
+		tcp_tfw_handle_error(sk, result);
+		return 0;
+	}
+	tcp_set_skb_tso_segs(nskb, nskb->len);
+
+transmit:
+#endif
 
 	/* We're ready to send.  If this fails, the probe will
 	 * be resegmented into mss-sized pieces by tcp_write_xmit().
@@ -2781,11 +2941,27 @@ static bool tcp_write_xmit(struct sock *sk, unsigned int mss_now, int nonagle,
 			else
 				break;
 		}
+#ifdef CONFIG_SECURITY_TEMPESTA
+		/*
+		 * tcp_grow_skb() logic overlaps with our own logic during
+		 * TLS encryption. Additionally, Tempesta still allocates SKBs
+		 * with a linear area, which makes calling tcp_grow_skb()
+		 * unnecessary even for plain HTTP.
+		 *
+		 * @TODO: issue #2347 - revise logic for plain HTTP.
+		 */
+		if (!sock_flag(sk, SOCK_TEMPESTA)) {
+			cwnd_quota = min(cwnd_quota, max_segs);
+			missing_bytes = cwnd_quota * mss_now - skb->len;
+			if (missing_bytes > 0)
+				tcp_grow_skb(sk, skb, missing_bytes);
+		}
+#else
 		cwnd_quota = min(cwnd_quota, max_segs);
 		missing_bytes = cwnd_quota * mss_now - skb->len;
 		if (missing_bytes > 0)
 			tcp_grow_skb(sk, skb, missing_bytes);
-
+#endif
 		tso_segs = tcp_set_skb_tso_segs(skb, mss_now);
 
 		if (unlikely(!tcp_snd_wnd_test(tp, skb, mss_now))) {
@@ -2810,7 +2986,17 @@ static bool tcp_write_xmit(struct sock *sk, unsigned int mss_now, int nonagle,
 			limit = tcp_mss_split_point(sk, skb, mss_now,
 						    cwnd_quota,
 						    nonagle);
-
+#ifdef CONFIG_SECURITY_TEMPESTA
+		if (sk->sk_write_xmit && skb_tfw_tls_type(skb)) {
+			if (unlikely(limit <= TLS_MAX_OVERHEAD)) {
+			    net_warn_ratelimited("%s: too small MSS %u"
+						 " for TLS\n",
+						 __func__, mss_now);
+				break;
+			}
+			TFW_ADJUST_TLS_OVERHEAD(limit);
+		}
+#endif
 		if (skb->len > limit &&
 		    unlikely(tso_fragment(sk, skb, limit, mss_now, gfp)))
 			break;
@@ -2825,7 +3011,13 @@ static bool tcp_write_xmit(struct sock *sk, unsigned int mss_now, int nonagle,
 		 */
 		if (TCP_SKB_CB(skb)->end_seq == TCP_SKB_CB(skb)->seq)
 			break;
-
+#ifdef CONFIG_SECURITY_TEMPESTA
+		result = tcp_tfw_sk_write_xmit(sk, skb, mss_now);
+		if (unlikely(result)) {
+			tcp_tfw_handle_error(sk, result);
+			return false;
+		}
+#endif
 		if (unlikely(tcp_transmit_skb(sk, skb, 1, gfp)))
 			break;
 
@@ -3015,6 +3207,7 @@ void __tcp_push_pending_frames(struct sock *sk, unsigned int cur_mss,
 			   sk_gfp_mask(sk, GFP_ATOMIC)))
 		tcp_check_probe_timer(sk);
 }
+EXPORT_SYMBOL(__tcp_push_pending_frames);
 
 /* Send _single_ skb sitting at the send head. This function requires
  * true push pending frames to setup probe timer etc.
@@ -3570,6 +3763,7 @@ void sk_forced_mem_schedule(struct sock *sk, int size)
 		mem_cgroup_charge_skmem(sk->sk_memcg, amt,
 					gfp_memcg_charge() | __GFP_NOFAIL);
 }
+EXPORT_SYMBOL(sk_forced_mem_schedule);
 
 /* Send a FIN. The caller locks the socket for us.
  * We should try to send a FIN packet really hard, but eventually give up.
@@ -3619,6 +3813,7 @@ void tcp_send_fin(struct sock *sk)
 	}
 	__tcp_push_pending_frames(sk, tcp_current_mss(sk), TCP_NAGLE_OFF);
 }
+EXPORT_SYMBOL(tcp_send_fin);
 
 /* We get here when a process closes a file descriptor (either due to
  * an explicit close() or as a byproduct of exit()'ing) and there
@@ -3653,6 +3848,7 @@ void tcp_send_active_reset(struct sock *sk, gfp_t priority,
 	 */
 	trace_tcp_send_reset(sk, NULL, reason);
 }
+EXPORT_SYMBOL(tcp_send_active_reset);
 
 /* Send a crossed SYN-ACK during socket establishment.
  * WARNING: This routine must only be called when we have already sent
@@ -4344,6 +4540,17 @@ int tcp_write_wakeup(struct sock *sk, int mib)
 		if (seg_size < TCP_SKB_CB(skb)->end_seq - TCP_SKB_CB(skb)->seq ||
 		    skb->len > mss) {
 			seg_size = min(seg_size, mss);
+#ifdef CONFIG_SECURITY_TEMPESTA
+			if (sk->sk_write_xmit && skb_tfw_tls_type(skb)) {
+				if (unlikely(seg_size <= TLS_MAX_OVERHEAD)) {
+					net_warn_ratelimited("%s: too small"
+							     " MSS %u for TLS\n",
+							     __func__, mss);
+					return -ENOMEM;
+				}
+				TFW_ADJUST_TLS_OVERHEAD(seg_size);
+			}
+#endif
 			TCP_SKB_CB(skb)->tcp_flags |= TCPHDR_PSH;
 			if (tcp_fragment(sk, TCP_FRAG_IN_WRITE_QUEUE,
 					 skb, seg_size, mss, GFP_ATOMIC))
@@ -4352,6 +4559,15 @@ int tcp_write_wakeup(struct sock *sk, int mib)
 			tcp_set_skb_tso_segs(skb, mss);
 
 		TCP_SKB_CB(skb)->tcp_flags |= TCPHDR_PSH;
+
+#ifdef CONFIG_SECURITY_TEMPESTA
+		err = tcp_tfw_sk_write_xmit(sk, skb, mss);
+		if (unlikely(err)) {
+			tcp_tfw_handle_error(sk, err);
+			return err;
+		}
+#endif
+
 		err = tcp_transmit_skb(sk, skb, 1, GFP_ATOMIC);
 		if (!err)
 			tcp_event_new_data_sent(sk, skb);
