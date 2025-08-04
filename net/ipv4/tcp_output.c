@@ -2389,6 +2389,32 @@ static inline void tcp_mtu_check_reprobe(struct sock *sk)
 	}
 }
 
+#ifdef CONFIG_SECURITY_TEMPESTA
+
+static bool tfw_tcp_skb_can_collapse(struct sock *sk, struct sk_buff *skb,
+				     struct sk_buff *next)
+{
+	if (!sock_flag(sk, SOCK_TEMPESTA))
+		return true;
+
+	if (tcp_skb_is_last(sk, skb))
+		return true;
+
+	if (skb_tfw_tls_type(skb) != skb_tfw_tls_type(next))
+		return false;
+
+	if (skb->mark != next->mark)
+		return false;
+
+	if ((skb_shinfo(skb)->flags & SKBFL_SHARED_FRAG) !=
+	    (skb_shinfo(next)->flags & SKBFL_SHARED_FRAG))
+		return false;
+
+	return true;
+}
+
+#endif
+
 static bool tcp_can_coalesce_send_queue_head(struct sock *sk, int len)
 {
 	struct sk_buff *skb, *next;
@@ -2400,12 +2426,9 @@ static bool tcp_can_coalesce_send_queue_head(struct sock *sk, int len)
 
 		if (tcp_has_tx_tstamp(skb) || !tcp_skb_can_collapse(skb, next))
 			return false;
+
 #ifdef CONFIG_SECURITY_TEMPESTA
-		/* Do not coalesce tempesta skbs with tls type or set mark. */
-		if ((next != ((struct sk_buff *)&(sk)->sk_write_queue))
-		    && ((skb_tfw_tls_type(skb) != skb_tfw_tls_type(next))
-			|| (sock_flag(sk, SOCK_TEMPESTA)
-			    && (skb->mark != next->mark))))
+		if (!tfw_tcp_skb_can_collapse(sk, skb, next))
 			return false;
 #endif
 
