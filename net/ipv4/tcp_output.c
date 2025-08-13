@@ -1674,6 +1674,7 @@ int tcp_fragment(struct sock *sk, enum tcp_queue tcp_queue,
 	skb->truesize -= nlen;
 #ifdef CONFIG_SECURITY_TEMPESTA
 	buff->mark = skb->mark;
+	buff->pp_recycle = skb->pp_recycle;
 #endif
 
 	/* Correct the sequence numbers. */
@@ -2229,6 +2230,7 @@ static int tso_fragment(struct sock *sk, struct sk_buff *skb, unsigned int len,
 	skb->truesize -= nlen;
 #ifdef CONFIG_SECURITY_TEMPESTA
 	buff->mark = skb->mark;
+	buff->pp_recycle = skb->pp_recycle;
 #endif
 
 	/* Correct the sequence numbers. */
@@ -2514,6 +2516,9 @@ static int tcp_clone_payload(struct sock *sk, struct sk_buff *to,
 	skb_frag_t *lastfrag = NULL, *fragto = skb_shinfo(to)->frags;
 	int i, todo, len = 0, nr_frags = 0;
 	const struct sk_buff *skb;
+#ifdef CONFIG_SECURITY_TEMPESTA
+	bool pp_recycle = false;
+#endif
 
 	if (!sk_wmem_schedule(sk, to->truesize + probe_size))
 		return -ENOMEM;
@@ -2523,6 +2528,10 @@ static int tcp_clone_payload(struct sock *sk, struct sk_buff *to,
 
 		if (skb_headlen(skb))
 			return -EINVAL;
+
+#ifdef CONFIG_SECURITY_TEMPESTA
+		pp_recycle |= skb->pp_recycle;
+#endif
 
 		for (i = 0; i < skb_shinfo(skb)->nr_frags; i++, fragfrom++) {
 			if (len >= probe_size)
@@ -2548,6 +2557,13 @@ static int tcp_clone_payload(struct sock *sk, struct sk_buff *to,
 	}
 commit:
 	WARN_ON_ONCE(len != probe_size);
+#ifdef CONFIG_SECURITY_TEMPESTA
+	/*
+	 * Need to have actual pp_recycle during
+	 * getting reference.
+	 */
+	to->pp_recycle = pp_recycle;
+#endif
 	for (i = 0; i < nr_frags; i++)
 		skb_frag_ref(to, i);
 
