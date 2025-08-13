@@ -1674,6 +1674,7 @@ int tcp_fragment(struct sock *sk, enum tcp_queue tcp_queue,
 	skb->truesize -= nlen;
 #ifdef CONFIG_SECURITY_TEMPESTA
 	buff->mark = skb->mark;
+	buff->pp_recycle = skb->pp_recycle;
 #endif
 
 	/* Correct the sequence numbers. */
@@ -2229,6 +2230,7 @@ static int tso_fragment(struct sock *sk, struct sk_buff *skb, unsigned int len,
 	skb->truesize -= nlen;
 #ifdef CONFIG_SECURITY_TEMPESTA
 	buff->mark = skb->mark;
+	buff->pp_recycle = skb->pp_recycle;
 #endif
 
 	/* Correct the sequence numbers. */
