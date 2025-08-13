@@ -2474,6 +2474,9 @@ struct sk_buff *__pskb_copy_fclone(struct sk_buff *skb, int headroom,
 	if (!n)
 		goto out;
 
+#ifdef CONFIG_SECURITY_TEMPESTA
+	n->pp_recycle = skb->pp_recycle;
+#endif
 	/* Set the data pointer */
 	skb_reserve(n, headroom);
 	/* Set the tail pointer and length */
@@ -4503,7 +4506,6 @@ int skb_shift(struct sk_buff *tgt, struct sk_buff *skb, int shiftlen)
 	if (skb_zcopy(tgt) || skb_zcopy(skb))
 		return 0;
 
-	DEBUG_NET_WARN_ON_ONCE(tgt->pp_recycle != skb->pp_recycle);
 	DEBUG_NET_WARN_ON_ONCE(skb_cmp_decrypted(tgt, skb));
 
 	todo = shiftlen;
@@ -4578,6 +4580,9 @@ int skb_shift(struct sk_buff *tgt, struct sk_buff *skb, int shiftlen)
 
 	/* Ready to "commit" this state change to tgt */
 	skb_shinfo(tgt)->nr_frags = to;
+#ifdef CONFIG_SECURITY_TEMPESTA
+	tgt->pp_recycle |= skb->pp_recycle;
+#endif
 
 	if (merge >= 0) {
 		fragfrom = &skb_shinfo(skb)->frags[0];
