@@ -4426,7 +4426,18 @@ static inline void skb_split_no_header(struct sk_buff *skb,
 				 *    where splitting is expensive.
 				 * 2. Split is accurately. We make this.
 				 */
+#ifdef CONFIG_SECURITY_TEMPESTA
+				skb_frag_t *frag = &skb_shinfo(skb)->frags[i];
+				netmem_ref netmem =
+					netmem_compound_head(frag->netmem);
+
+				if (is_pp_netmem(netmem))
+					page_pool_ref_netmem(netmem);
+				else
+					page_ref_inc(netmem_to_page(netmem));
+#else
 				skb_frag_ref(skb, i);
+#endif
 				skb_frag_off_add(&skb_shinfo(skb1)->frags[0], len - pos);
 				skb_frag_size_sub(&skb_shinfo(skb1)->frags[0], len - pos);
 				skb_frag_size_set(&skb_shinfo(skb)->frags[i], len - pos);
