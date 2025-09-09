@@ -1273,6 +1273,28 @@ bool napi_pp_put_page(netmem_ref netmem)
 	return true;
 }
 EXPORT_SYMBOL(napi_pp_put_page);
+
+#ifdef CONFIG_SECURITY_TEMPESTA
+bool napi_pp_get_page(netmem_ref netmem)
+{
+	netmem = netmem_compound_head(netmem);
+
+	/* page->pp_magic is OR'ed with PP_SIGNATURE after the allocation
+	 * in order to preserve any existing bits, such as bit 0 for the
+	 * head page of compound page and bit 1 for pfmemalloc page, so
+	 * mask those bits for freeing side when doing below checking,
+	 * and page_is_pfmemalloc() is checked in __page_pool_put_page()
+	 * to avoid recycling the pfmemalloc page.
+	 */
+	if (unlikely(!is_pp_netmem(netmem)))
+		return false;
+
+	page_pool_ref_netmem(netmem);
+
+	return true;
+}
+EXPORT_SYMBOL(napi_pp_get_page);
+#endif /* CONFIG_SECURITY_TEMPESTA */
 #endif
 
 static bool skb_pp_recycle(struct sk_buff *skb, void *data)
@@ -1282,6 +1304,7 @@ static bool skb_pp_recycle(struct sk_buff *skb, void *data)
 	return napi_pp_put_page(page_to_netmem(virt_to_page(data)));
 }
 
+#ifndef CONFIG_SECURITY_TEMPESTA
 /**
  * skb_pp_frag_ref() - Increase fragment references of a page pool aware skb
  * @skb:	page pool aware skb
@@ -1312,6 +1335,7 @@ static int skb_pp_frag_ref(struct sk_buff *skb)
 	}
 	return 0;
 }
+#endif
 
 static void skb_kfree_head(void *head, unsigned int end_offset)
 {
@@ -4573,7 +4597,11 @@ int skb_shift(struct sk_buff *tgt, struct sk_buff *skb, int shiftlen)
 			to++;
 
 		} else {
+#ifdef CONFIG_SECURITY_TEMPESTA
+			__skb_frag_ref(fragfrom, skb->pp_recycle);
+#else
 			__skb_frag_ref(fragfrom);
+#endif
 			skb_frag_page_copy(fragto, fragfrom);
 			skb_frag_off_copy(fragto, fragfrom);
 			skb_frag_size_set(fragto, todo);
@@ -5261,7 +5289,11 @@ normal:
 			}
 
 			*nskb_frag = (i < 0) ? skb_head_frag_to_page_desc(frag_skb) : *frag;
+#ifdef CONFIG_SECURITY_TEMPESTA
+			__skb_frag_ref(nskb_frag, nskb->pp_recycle);
+#else
 			__skb_frag_ref(nskb_frag);
+#endif
 			size = skb_frag_size(nskb_frag);
 
 			if (pos < offset) {
@@ -6417,10 +6449,15 @@ bool skb_try_coalesce(struct sk_buff *to, struct sk_buff *from,
 	/* if the skb is not cloned this does nothing
 	 * since we set nr_frags to 0.
 	 */
+#ifdef CONFIG_SECURITY_TEMPESTA
+	for (i = 0; i < from_shinfo->nr_frags; i++)
+		__skb_frag_ref(&from_shinfo->frags[i], from->pp_recycle);
+#else
 	if (skb_pp_frag_ref(from)) {
 		for (i = 0; i < from_shinfo->nr_frags; i++)
 			__skb_frag_ref(&from_shinfo->frags[i]);
 	}
+#endif
 
 	to->truesize += delta;
 	to->len += len;
