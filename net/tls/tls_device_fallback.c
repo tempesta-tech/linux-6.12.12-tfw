@@ -278,7 +278,11 @@ static int fill_sg_in(struct scatterlist *sg_in,
 	for (i = 0; remaining > 0; i++) {
 		skb_frag_t *frag = &record->frags[i];
 
+#ifdef CONFIG_SECURITY_TEMPESTA
+		__skb_frag_ref(frag, false);
+#else
 		__skb_frag_ref(frag);
+#endif
 		sg_set_page(sg_in + i, skb_frag_page(frag),
 			    skb_frag_size(frag), skb_frag_off(frag));
 
