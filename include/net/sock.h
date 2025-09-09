@@ -2103,7 +2103,7 @@ static inline bool sk_rethink_txhash(struct sock *sk)
 static inline struct dst_entry *
 __sk_dst_get(const struct sock *sk)
 {
-#if CONFIG_SECURITY_TEMPESTA
+#ifdef CONFIG_SECURITY_TEMPESTA
 	return rcu_dereference_raw(sk->sk_dst_cache);
 #else
 	return rcu_dereference_check(sk->sk_dst_cache,

@@ -9,6 +9,43 @@
 
 #include <linux/skbuff.h>
 
+#ifdef CONFIG_SECURITY_TEMPESTA
+bool napi_pp_get_page(netmem_ref netmem);
+static inline void skb_page_ref(netmem_ref netmem, bool recycle)
+{
+#ifdef CONFIG_PAGE_POOL
+	if (recycle && napi_pp_get_page(netmem))
+		return;
+#endif
+	get_page(netmem_to_page(netmem));
+}
+
+/**
+ * __skb_frag_ref - take an addition reference on a paged fragment.
+ * @frag: the paged fragment
+ * @recycle: recycle netmem in page_pool
+ *
+ * Takes an additional reference on the paged fragment @frag.
+ */
+static inline void __skb_frag_ref(skb_frag_t *frag, bool recycle)
+{
+	skb_page_ref(skb_frag_netmem(frag), recycle);
+}
+
+/**
+ * skb_frag_ref - take an addition reference on a paged fragment of an skb.
+ * @skb: the buffer
+ * @f: the fragment offset.
+ *
+ * Takes an additional reference on the @f'th paged fragment of @skb.
+ */
+static inline void skb_frag_ref(struct sk_buff *skb, int f)
+{
+	__skb_frag_ref(&skb_shinfo(skb)->frags[f], skb->pp_recycle);
+}
+
+#else
+
 /**
  * __skb_frag_ref - take an addition reference on a paged fragment.
  * @frag: the paged fragment
@@ -31,6 +68,7 @@ static inline void skb_frag_ref(struct sk_buff *skb, int f)
 {
 	__skb_frag_ref(&skb_shinfo(skb)->frags[f]);
 }
+#endif
 
 bool napi_pp_put_page(netmem_ref netmem);
 
