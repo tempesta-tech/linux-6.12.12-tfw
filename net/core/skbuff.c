@@ -4617,6 +4617,9 @@ int skb_shift(struct sk_buff *tgt, struct sk_buff *skb, int shiftlen)
 
 	/* Ready to "commit" this state change to tgt */
 	skb_shinfo(tgt)->nr_frags = to;
+#ifdef CONFIG_SECURITY_TEMPESTA
+	tgt->pp_recycle |= skb->pp_recycle;
+#endif
 
 	if (merge >= 0) {
 		fragfrom = &skb_shinfo(skb)->frags[0];
