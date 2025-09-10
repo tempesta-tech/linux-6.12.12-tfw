@@ -1099,6 +1099,42 @@ struct sk_buff {
 	/* only usable after checking ->active_extensions != 0 */
 	struct skb_ext		*extensions;
 #endif
+	unsigned long		tfw_flags;
+	unsigned long		reserved;
+	unsigned long		reserved_cnt;
+	unsigned long		reserved_1;
+	unsigned long		reserved_2;
+	unsigned long           pushed[10];
+	void *			alloc_from[5];
+	void *			reserved_from[5];
+};
+
+enum {
+	TFW_SKB_1 = 0x1,
+	TFW_SKB_2 = 0x2,
+	TFW_SKB_3 = 0x4,
+	TFW_SKB_4 = 0x8,
+	TFW_SKB_5 = 0x10,
+	TFW_SKB_6 = 0x20,
+	TFW_SKB_7 = 0x40,
+	TFW_SKB_8 = 0x80,
+	TFW_SKB_9 = 0x100,
+	TFW_SKB_10 = 0x200,
+	TFW_SKB_COPY = 0x400,
+	TFW_SKB_11 = 0x800,
+	TFW_SKB_12 = 0x1000,
+	TFW_SKB_13 = 0x2000,
+	TFW_SKB_14 = 0x4000,
+	TFW_SKB_15 = 0x8000,
+	TFW_SKB_16 = 0x10000,
+	TFW_SKB_17 = 0x20000,
+	TFW_SKB_18 = 0x40000,
+	TFW_SKB_19 = 0x80000,
+	TFW_SKB_20 = 0x100000,
+	TFW_SKB_21 = 0x200000,
+	TFW_SKB_22 = 0x400000,
+	TFW_SKB_23 = 0x800000,
+	TFW_SKB_24 = 0x1000000,
 };
 
 /* if you move pkt_type around you also must adapt those constants */
@@ -2932,6 +2968,13 @@ static inline void skb_reserve(struct sk_buff *skb, int len)
 {
 	skb->data += len;
 	skb->tail += len;
+	skb->reserved += len;
+	skb->reserved_cnt++;
+	skb->reserved_from[0] = __builtin_return_address(0);
+	skb->reserved_from[1] = __builtin_return_address(1);
+	skb->reserved_from[2] = __builtin_return_address(2);
+	skb->reserved_from[3] = __builtin_return_address(3);
+	skb->reserved_from[4] = __builtin_return_address(4);
 }
 
 /**

@@ -769,6 +769,8 @@ static struct sk_buff *virtnet_build_skb(void *buf, unsigned int buflen,
 	if (unlikely(!skb))
 		return NULL;
 
+	skb->tfw_flags |= TFW_SKB_18;
+
 	skb_reserve(skb, headroom);
 	skb_put(skb, len);
 
@@ -810,6 +812,8 @@ static struct sk_buff *page_to_skb(struct virtnet_info *vi,
 		skb = virtnet_build_skb(buf, truesize, p - buf, len);
 		if (unlikely(!skb))
 			return NULL;
+
+		skb->tfw_flags |= TFW_SKB_20;
 
 		page = (struct page *)page->private;
 		if (page)
@@ -1716,6 +1720,8 @@ static struct sk_buff *receive_small_build_skb(struct virtnet_info *vi,
 	if (unlikely(!skb))
 		return NULL;
 
+	skb->tfw_flags |= TFW_SKB_21;
+
 	buf += header_offset;
 	memcpy(skb_vnet_common_hdr(skb), buf, vi->hdr_len);
 
@@ -1798,6 +1804,8 @@ static struct sk_buff *receive_small_xdp(struct net_device *dev,
 	skb = virtnet_build_skb(buf, buflen, xdp.data - buf, len);
 	if (unlikely(!skb))
 		goto err;
+
+	skb->tfw_flags |= TFW_SKB_22;
 
 	if (metasize)
 		skb_metadata_set(skb, metasize);
@@ -1939,6 +1947,8 @@ static struct sk_buff *build_skb_from_xdp_buff(struct net_device *dev,
 	skb = build_skb(xdp->data_hard_start, xdp->frame_sz);
 	if (unlikely(!skb))
 		return NULL;
+
+	skb->tfw_flags |= TFW_SKB_19;
 
 	headroom = xdp->data - xdp->data_hard_start;
 	data_len = xdp->data_end - xdp->data;

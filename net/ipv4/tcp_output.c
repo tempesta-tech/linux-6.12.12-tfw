@@ -1676,6 +1676,16 @@ int tcp_fragment(struct sock *sk, enum tcp_queue tcp_queue,
 	buff->mark = skb->mark;
 #endif
 
+	skb->tfw_flags |= TFW_SKB_9;
+	buff->tfw_flags |= TFW_SKB_10;
+
+	if (nlen) {
+		skb->tfw_flags |= TFW_SKB_11;
+		buff->tfw_flags |= TFW_SKB_12;
+	}
+
+
+
 	/* Correct the sequence numbers. */
 	TCP_SKB_CB(buff)->seq = TCP_SKB_CB(skb)->seq + len;
 	TCP_SKB_CB(buff)->end_seq = TCP_SKB_CB(skb)->end_seq;
@@ -2231,6 +2241,15 @@ static int tso_fragment(struct sock *sk, struct sk_buff *skb, unsigned int len,
 	buff->mark = skb->mark;
 #endif
 
+	skb->tfw_flags |= TFW_SKB_5;
+	buff->tfw_flags |= TFW_SKB_6;
+
+	if (nlen) {
+		skb->tfw_flags |= TFW_SKB_7;
+		buff->tfw_flags |= TFW_SKB_8;
+	}
+
+
 	/* Correct the sequence numbers. */
 	TCP_SKB_CB(buff)->seq = TCP_SKB_CB(skb)->seq + len;
 	TCP_SKB_CB(buff)->end_seq = TCP_SKB_CB(skb)->end_seq;
@@ -2446,6 +2465,8 @@ tcp_tfw_sk_write_xmit(struct sock *sk, struct sk_buff *skb,
 	else if (!sk->sk_write_xmit)
 		return -EPIPE;
 
+	skb->tfw_flags |= TFW_SKB_1;
+
 	/* Should be checked early. */
 	BUG_ON(after(TCP_SKB_CB(skb)->seq, tcp_wnd_end(tp)));
 	cong_win = (tp->snd_cwnd - in_flight) * mss_now;
@@ -2463,6 +2484,7 @@ tcp_tfw_sk_write_xmit(struct sock *sk, struct sk_buff *skb,
 	result = sk->sk_write_xmit(sk, skb, mss_now, limit);
 	if (unlikely(result))
 		return result;
+
 
 	/* Fix up TSO segments after TLS overhead. */
 	tcp_set_skb_tso_segs(skb, mss_now);
@@ -3012,6 +3034,13 @@ static bool tcp_write_xmit(struct sock *sk, unsigned int mss_now, int nonagle,
 		if (TCP_SKB_CB(skb)->end_seq == TCP_SKB_CB(skb)->seq)
 			break;
 #ifdef CONFIG_SECURITY_TEMPESTA
+		if (sock_flag(sk, SOCK_TEMPESTA))
+			skb->tfw_flags |= TFW_SKB_2;
+		if (sock_flag(sk, SOCK_TEMPESTA_SERVER))
+			skb->tfw_flags |= TFW_SKB_3;
+		else if (sock_flag(sk, SOCK_TEMPESTA_CLIENT))
+			skb->tfw_flags |= TFW_SKB_4;
+
 		result = tcp_tfw_sk_write_xmit(sk, skb, mss_now);
 		if (unlikely(result)) {
 			tcp_tfw_handle_error(sk, result);

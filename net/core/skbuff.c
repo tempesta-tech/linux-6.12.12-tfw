@@ -202,10 +202,23 @@ EXPORT_SYMBOL_GPL(drop_reasons_unregister_subsys);
 static void skb_panic(struct sk_buff *skb, unsigned int sz, void *addr,
 		      const char msg[])
 {
-	pr_emerg("%s: text:%px len:%d put:%d head:%px data:%px tail:%#lx end:%#lx dev:%s\n",
+	unsigned int iii;
+
+	pr_emerg("%s: text:%px len:%d put:%d head:%px data:%px tail:%#lx end:%#lx dev:%s headlen %u tfw_flags %lu reserved %lu reserved_cnt %lu reserved_1 %lu reserved_2 %lu\n",
 		 msg, addr, skb->len, sz, skb->head, skb->data,
 		 (unsigned long)skb->tail, (unsigned long)skb->end,
-		 skb->dev ? skb->dev->name : "<NULL>");
+		 skb->dev ? skb->dev->name : "<NULL>", skb_headlen(skb), skb->tfw_flags,
+		 skb->reserved, skb->reserved_cnt, skb->reserved_1, skb->reserved_2);
+	for (iii = 0; iii < 10; iii++)
+		pr_emerg("!!! %u: %lu", iii, skb->pushed[iii]);
+	pr_emerg("ALLOC_FROM %ps %ps %ps %ps %ps",
+		skb->alloc_from[0], skb->alloc_from[1], skb->alloc_from[2],
+		skb->alloc_from[3], skb->alloc_from[4]);
+	pr_emerg("RESERVED_FROM %ps %ps %ps %ps %ps",
+		skb->reserved_from[0], skb->reserved_from[1], skb->reserved_from[2],
+		skb->reserved_from[3], skb->reserved_from[4]);
+
+	pr_emerg("_________________________________________________");	
 	BUG();
 }
 
@@ -482,6 +495,12 @@ struct sk_buff *__build_skb(void *data, unsigned int frag_size)
 
 	memset(skb, 0, offsetof(struct sk_buff, tail));
 	__build_skb_around(skb, data, frag_size);
+
+	skb->alloc_from[0] = __builtin_return_address(0);
+	skb->alloc_from[1] = __builtin_return_address(1);
+	skb->alloc_from[2] = __builtin_return_address(2);
+	skb->alloc_from[3] = __builtin_return_address(3);
+	skb->alloc_from[4] = __builtin_return_address(4);
 
 	return skb;
 }
@@ -926,6 +945,20 @@ struct sk_buff *__alloc_skb(unsigned int size, gfp_t gfp_mask, int flags,
 	skb->pfmemalloc = page_is_pfmemalloc(pg);
 	skb->head_frag = 1;
 	skb->skb_page = 1;
+	skb->tfw_flags = 0;
+	skb->reserved = 0;
+	skb->reserved_cnt = 0;
+	skb->reserved_1 = 0;
+	skb->reserved_2 = 0;
+	memset(skb->pushed, 0, sizeof(skb->pushed));
+	memset(skb->alloc_from, 0, sizeof(skb->alloc_from));
+	memset(skb->reserved_from, 0, sizeof(skb->reserved_from));
+
+	skb->alloc_from[0] = __builtin_return_address(0);
+	skb->alloc_from[1] = __builtin_return_address(1);
+	skb->alloc_from[2] = __builtin_return_address(2);
+	skb->alloc_from[3] = __builtin_return_address(3);
+	skb->alloc_from[4] = __builtin_return_address(4);
 
 	if (flags & SKB_ALLOC_FCLONE) {
 		struct sk_buff_fclones *fclones;
@@ -1858,6 +1891,16 @@ static struct sk_buff *__skb_clone(struct sk_buff *n, struct sk_buff *skb)
 	n->cloned = 1;
 	n->nohdr = 0;
 	n->peeked = 0;
+	C(tfw_flags);
+	n->tfw_flags |= TFW_SKB_COPY;
+	C(reserved);
+	C(reserved_cnt);
+	C(reserved_1);
+	C(reserved_2);
+	memcpy(n->pushed, skb->pushed, sizeof(n->pushed));
+	memcpy(n->reserved_from, skb->reserved_from, sizeof(n->reserved_from));
+	memcpy(n->alloc_from, skb->alloc_from, sizeof(n->alloc_from));
+
 	C(pfmemalloc);
 	C(pp_recycle);
 	n->destructor = NULL;

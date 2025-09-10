@@ -727,6 +727,7 @@ struct sk_buff *ip_frag_next(struct sk_buff *skb, struct ip_frag_state *state)
 	 * allocate and reserve all necessary space by itself.
 	 */
 	skb2 = alloc_skb(len + state->hlen + MAX_TCP_HEADER, GFP_ATOMIC);
+	skb2->tfw_flags |= TFW_SKB_13;
 #else
 	skb2 = alloc_skb(len + state->hlen + state->ll_rs, GFP_ATOMIC);
 #endif

@@ -986,6 +986,13 @@ enum sock_flags {
 			       * `tcp_done` should not be called from the
 			       * kernel code.
 			       */
+	SOCK_TEMPESTA_SERVER,
+	SOCK_TEMPESTA_CLIENT,
+	SOCK_1,
+	SOCK_2,
+	SOCK_3,
+	SOCK_4,
+	SOCK_5,
 #endif
 };
 

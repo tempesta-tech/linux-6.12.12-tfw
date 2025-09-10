@@ -5406,11 +5406,14 @@ void tcp_rbtree_insert(struct rb_root *root, struct sk_buff *skb)
  */
 static void
 tcp_collapse(struct sock *sk, struct sk_buff_head *list, struct rb_root *root,
-	     struct sk_buff *head, struct sk_buff *tail, u32 start, u32 end)
+	     struct sk_buff *head, struct sk_buff *tail, u32 start, u32 end, int from)
 {
 	struct sk_buff *skb = head, *n;
 	struct sk_buff_head tmp;
 	bool end_of_skbs;
+	u32 init_start = start;
+	struct sk_buff *init_head = head;
+	struct sk_buff *skipped = NULL; 
 
 	/* First, check that queue is collapsible and find
 	 * the point where collapsing can be useful.
@@ -5427,6 +5430,7 @@ restart:
 			skb = tcp_collapse_one(sk, skb, list, root);
 			if (!skb)
 				break;
+			skb->tfw_flags |= TFW_SKB_24;
 			goto restart;
 		}
 
@@ -5452,6 +5456,7 @@ restart:
 skip_this:
 		/* Decided to skip this, advance start seq. */
 		start = TCP_SKB_CB(skb)->end_seq;
+		skipped = skb;
 	}
 	if (end_of_skbs ||
 	    (TCP_SKB_CB(skb)->tcp_flags & (TCPHDR_SYN | TCPHDR_FIN)) ||
@@ -5463,6 +5468,7 @@ skip_this:
 	while (before(start, end)) {
 		int copy = min_t(int, SKB_MAX_ORDER(0, 0), end - start);
 		struct sk_buff *nskb;
+		int QQQ = 0;
 
 #ifdef CONFIG_SECURITY_TEMPESTA
 		/*
@@ -5493,6 +5499,26 @@ skip_this:
 		while (copy > 0) {
 			int offset = start - TCP_SKB_CB(skb)->seq;
 			int size = TCP_SKB_CB(skb)->end_seq - start;
+			int ZZZ = 0;
+			bool alfa = false;
+
+			if (offset < 0) {
+				printk(KERN_ALERT "GGGGGGGGGGGGGGGGG %px headroom %u: len:%d head:%px data:%px tail:%#lx end:%#lx dev:%s headlen %u tfw_flags %lu reserved %lu reserved_cnt %lu reserved_1 %lu reserved_2 %lu\n",
+		 skb, skb_headroom(skb), skb->len, skb->head, skb->data,
+		 (unsigned long)skb->tail, (unsigned long)skb->end,
+		 skb->dev ? skb->dev->name : "<NULL>", skb_headlen(skb), skb->tfw_flags,
+		 skb->reserved, skb->reserved_cnt, skb->reserved_1, skb->reserved_2);
+		printk(KERN_ALERT "GGGGGGGGGGGGGGGGGG ALLOC_FROM %px %ps %ps %ps %ps %ps",
+		skb, skb->alloc_from[0], skb->alloc_from[1], skb->alloc_from[2],
+		skb->alloc_from[3], skb->alloc_from[4]);
+		printk(KERN_ALERT "GGGGGGGGGGGGGGGGGG RESERVED_FROM %px %ps %ps %ps %ps %ps",
+		skb, skb->reserved_from[0], skb->reserved_from[1], skb->reserved_from[2],
+		skb->reserved_from[3], skb->reserved_from[4]);
+		printk(KERN_ALERT "QQQ %d ZZZ %d alfa %d init_start %u start %u init_head %px skb %px offset %d seq %u %u skipped %px from %d",
+			QQQ, ZZZ, alfa, init_start, start, init_head, skb, offset, TCP_SKB_CB(skb)->seq, TCP_SKB_CB(skb)->end_seq, skipped, from);
+			}
+
+			alfa = true;
 
 			BUG_ON(offset < 0);
 			if (size > 0) {
@@ -5512,7 +5538,11 @@ skip_this:
 				    !skb_frags_readable(skb))
 					goto end;
 			}
+
+			ZZZ++;
 		}
+
+		QQQ++;
 	}
 end:
 	skb_queue_walk_safe(&tmp, skb, n)
@@ -5552,7 +5582,7 @@ new_range:
 			if (range_truesize != head->truesize ||
 			    end - start >= SKB_WITH_OVERHEAD(PAGE_SIZE)) {
 				tcp_collapse(sk, NULL, &tp->out_of_order_queue,
-					     head, skb, start, end);
+					     head, skb, start, end, 1);
 			} else {
 				sum_tiny += range_truesize;
 				if (sum_tiny > sk->sk_rcvbuf >> 3)
@@ -5655,7 +5685,7 @@ static int tcp_prune_queue(struct sock *sk, const struct sk_buff *in_skb)
 		tcp_collapse(sk, &sk->sk_receive_queue, NULL,
 			     skb_peek(&sk->sk_receive_queue),
 			     NULL,
-			     tp->copied_seq, tp->rcv_nxt);
+			     tp->copied_seq, tp->rcv_nxt, 2);
 
 	if (atomic_read(&sk->sk_rmem_alloc) <= sk->sk_rcvbuf)
 		return 0;

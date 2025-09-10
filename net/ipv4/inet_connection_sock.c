@@ -1340,14 +1340,31 @@ static int inet_ulp_can_listen(const struct sock *sk)
 int inet_csk_listen_start(struct sock *sk)
 {
 	struct inet_connection_sock *icsk = inet_csk(sk);
+	struct request_sock_queue *queue = &icsk->icsk_accept_queue;
 	struct inet_sock *inet = inet_sk(sk);
 	int err;
 
+	if (sock_flag(sk, SOCK_1))
+		printk(KERN_ALERT "inet_csk_listen_start 111 %px", sk);
+
 	err = inet_ulp_can_listen(sk);
-	if (unlikely(err))
+	if (unlikely(err)) {
+		if (sock_flag(sk, SOCK_1))
+			printk(KERN_ALERT "inet_csk_listen_start FAIl 111 %px", sk);
 		return err;
+	}
+
+	if (sock_flag(sk, SOCK_1))
+		printk(KERN_ALERT "inet_csk_listen_start 222 %px", sk);
 
 	reqsk_queue_alloc(&icsk->icsk_accept_queue);
+
+	if (sock_flag(sk, SOCK_1)) {
+		printk(KERN_ALERT "inet_csk_listen_start 222 %px %px %d %u",
+			sk, queue,
+			queue->rskq_lock.rlock.magic != SPINLOCK_MAGIC,
+			queue->rskq_lock.rlock.magic);
+	}
 
 	sk->sk_ack_backlog = 0;
 	inet_csk_delack_init(sk);
@@ -1486,6 +1503,14 @@ void inet_csk_listen_stop(struct sock *sk)
 	struct inet_connection_sock *icsk = inet_csk(sk);
 	struct request_sock_queue *queue = &icsk->icsk_accept_queue;
 	struct request_sock *next, *req;
+
+	if (queue->rskq_lock.rlock.magic != SPINLOCK_MAGIC) {
+		printk(KERN_ALERT "SK %px %px %d %u",
+			sk, queue,
+			queue->rskq_lock.rlock.magic != SPINLOCK_MAGIC,
+			queue->rskq_lock.rlock.magic);
+	}
+
 
 	/* Following specs, it would be better either to send FIN
 	 * (and enter FIN-WAIT-1, it is normal close)

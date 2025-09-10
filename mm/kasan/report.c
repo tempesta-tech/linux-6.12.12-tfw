@@ -47,6 +47,9 @@ enum kasan_arg_fault {
 	KASAN_ARG_FAULT_PANIC_ON_WRITE,
 };
 
+static DEFINE_PER_CPU_ALIGNED(int, read_failed);
+static DEFINE_PER_CPU_ALIGNED(int, write_failed);
+
 static enum kasan_arg_fault kasan_arg_fault __ro_after_init = KASAN_ARG_FAULT_DEFAULT;
 
 /* kasan.fault=report/panic */
@@ -581,6 +584,7 @@ bool kasan_report(const void *addr, size_t size, bool is_write,
 	unsigned long ua_flags = user_access_save();
 	unsigned long irq_flags;
 	struct kasan_report_info info;
+	int cpu = smp_processor_id();
 
 	if (unlikely(report_suppressed_sw()) || unlikely(!report_enabled())) {
 		ret = false;
@@ -602,11 +606,34 @@ bool kasan_report(const void *addr, size_t size, bool is_write,
 
 	end_report(&irq_flags, (void *)addr, is_write);
 
+	if (is_write) {
+		*(per_cpu_ptr(&write_failed, cpu)) = 1;
+	} else {
+		*(per_cpu_ptr(&read_failed, cpu)) = 1;
+	}
+
+
 out:
 	user_access_restore(ua_flags);
 
 	return ret;
 }
+
+int kasan_get_faild(int cpu, int is_write)
+{
+	int rc;
+
+	if (is_write) {
+		rc = *(per_cpu_ptr(&write_failed, cpu));
+		*(per_cpu_ptr(&write_failed, cpu)) = 0;
+	} else {
+		rc = *(per_cpu_ptr(&read_failed, cpu));
+		*(per_cpu_ptr(&read_failed, cpu)) = 0;
+	}
+
+	return rc;
+}
+EXPORT_SYMBOL_GPL(kasan_get_faild);
 
 #ifdef CONFIG_KASAN_HW_TAGS
 void kasan_report_async(void)
