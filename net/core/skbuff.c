@@ -1358,6 +1358,57 @@ static void skb_free_head(struct sk_buff *skb)
 	}
 }
 
+#ifdef CONFIG_SECURITY_TEMPESTA
+static void skb_release_data(struct sk_buff *skb, enum skb_drop_reason reason)
+{
+	struct skb_shared_info *shinfo = skb_shinfo(skb);
+	int i;
+
+	if (!skb_data_unref(skb, shinfo))
+		return;
+
+	if (skb_zcopy(skb)) {
+		bool skip_unref = shinfo->flags & SKBFL_MANAGED_FRAG_REFS;
+
+		skb_zcopy_clear(skb, true);
+		if (skip_unref)
+			goto free_head;
+	}
+
+	for (i = 0; i < shinfo->nr_frags; i++)
+		__skb_frag_unref(&shinfo->frags[i], skb->pp_recycle);
+
+free_head:
+	if (shinfo->frag_list)
+		kfree_skb_list_reason(shinfo->frag_list, reason);
+
+	skb_free_head(skb);
+}
+
+/**
+ * Intended to be used only when freeing skb, at this time we ensure that skb
+ * will not live after call of the function. Don't use in functions like
+ * pskb_expand_head() where skb still can be transmitted after releasing the
+ * data, we do so to preserve pp_recycle flag. In such cases use
+ * skb_release_data().
+ */
+static void skb_release_data_finally(struct sk_buff *skb,
+				     enum skb_drop_reason reason)
+{
+	skb_release_data(skb, reason);
+	/* When we clone an SKB we copy the reycling bit. The pp_recycle
+	 * bit is only set on the head though, so in order to avoid races
+	 * while trying to recycle fragments on __skb_frag_unref() we need
+	 * to make one SKB responsible for triggering the recycle path.
+	 * So disable the recycling bit if an SKB is cloned and we have
+	 * additional references to the fragmented part of the SKB.
+	 * Eventually the last SKB will have the recycling bit set and it's
+	 * dataref set to 0, which will trigger the recycling
+	 */
+	skb->pp_recycle = 0;
+}
+
+#else
 static void skb_release_data(struct sk_buff *skb, enum skb_drop_reason reason)
 {
 	struct skb_shared_info *shinfo = skb_shinfo(skb);
@@ -1394,6 +1445,7 @@ exit:
 	 */
 	skb->pp_recycle = 0;
 }
+#endif
 
 /*
  *	Free an skbuff by memory without cleaning the state.
@@ -1456,7 +1508,11 @@ static void skb_release_all(struct sk_buff *skb, enum skb_drop_reason reason)
 {
 	skb_release_head_state(skb);
 	if (likely(skb->head))
+#ifdef CONFIG_SECURITY_TEMPESTA
+		skb_release_data_finally(skb, reason);
+#else
 		skb_release_data(skb, reason);
+#endif
 }
 
 /**
@@ -1724,7 +1780,11 @@ EXPORT_SYMBOL(consume_skb);
 void __consume_stateless_skb(struct sk_buff *skb)
 {
 	trace_consume_skb(skb, __builtin_return_address(0));
+#ifdef CONFIG_SECURITY_TEMPESTA
+	skb_release_data_finally(skb, SKB_CONSUMED);
+#else
 	skb_release_data(skb, SKB_CONSUMED);
+#endif
 	kfree_skbmem(skb);
 }
 
