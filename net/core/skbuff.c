@@ -2498,6 +2498,7 @@ struct sk_buff *__pskb_copy_fclone(struct sk_buff *skb, int headroom,
 	if (!n)
 		goto out;
 
+	n->pp_recycle = skb->pp_recycle;
 	/* Set the data pointer */
 	skb_reserve(n, headroom);
 	/* Set the tail pointer and length */

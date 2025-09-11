@@ -2407,7 +2407,8 @@ static bool tcp_can_coalesce_send_queue_head(struct sock *sk, int len)
 		if ((next != ((struct sk_buff *)&(sk)->sk_write_queue))
 		    && ((skb_tfw_tls_type(skb) != skb_tfw_tls_type(next))
 			|| (sock_flag(sk, SOCK_TEMPESTA)
-			    && (skb->mark != next->mark))))
+			    && (skb->mark != next->mark))
+			|| next->pp_recycle != skb->pp_recycle))
 			return false;
 #endif
 
