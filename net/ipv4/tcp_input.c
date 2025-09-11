@@ -3364,6 +3364,7 @@ static int tcp_clean_rtx_queue(struct sock *sk, const struct sk_buff *ack_skb,
 		u8 sacked = scb->sacked;
 		u32 acked_pcount;
 
+		is_skb_valid(skb, "clean 1\n");
 		/* Determine how many packets and what bytes were acked, tso and else */
 		if (after(scb->end_seq, tp->snd_una)) {
 			if (tcp_skb_pcount(skb) == 1 ||
@@ -3426,6 +3427,7 @@ static int tcp_clean_rtx_queue(struct sock *sk, const struct sk_buff *ack_skb,
 		if (!fully_acked)
 			break;
 
+		is_skb_valid(skb, "clean 2\n");
 		tcp_ack_tstamp(sk, skb, ack_skb, prior_snd_una);
 
 		next = skb_rb_next(skb);
@@ -3434,6 +3436,7 @@ static int tcp_clean_rtx_queue(struct sock *sk, const struct sk_buff *ack_skb,
 		if (unlikely(skb == tp->lost_skb_hint))
 			tp->lost_skb_hint = NULL;
 		tcp_highest_sack_replace(sk, skb, next);
+		is_skb_valid(skb, "clean 3\n");
 		tcp_rtx_queue_unlink_and_free(skb, sk);
 	}
 

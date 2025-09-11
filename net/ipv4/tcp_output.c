@@ -3021,6 +3021,7 @@ static bool tcp_write_xmit(struct sock *sk, unsigned int mss_now, int nonagle,
 			return false;
 		}
 #endif
+		is_skb_valid(skb, "write_xmit 1\n");
 		if (unlikely(tcp_transmit_skb(sk, skb, 1, gfp)))
 			break;
 

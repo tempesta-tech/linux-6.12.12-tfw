@@ -5279,5 +5279,6 @@ static inline void skb_mark_for_recycle(struct sk_buff *skb)
 ssize_t skb_splice_from_iter(struct sk_buff *skb, struct iov_iter *iter,
 			     ssize_t maxsize, gfp_t gfp);
 
+void is_skb_valid(struct sk_buff *skb, char* str);
 #endif	/* __KERNEL__ */
 #endif	/* _LINUX_SKBUFF_H */

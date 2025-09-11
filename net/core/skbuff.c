@@ -7755,3 +7755,17 @@ bool csum_and_copy_from_iter_full(void *addr, size_t bytes,
 	return false;
 }
 EXPORT_SYMBOL(csum_and_copy_from_iter_full);
+
+void is_skb_valid(struct sk_buff *skb, char* str)
+{
+	if (!skb->pp_recycle) {
+		for (int i = 0; i < skb_shinfo(skb)->nr_frags; i ++) {
+			skb_frag_t *frag = &skb_shinfo(skb)->frags[i];
+			netmem_ref netmem = netmem_compound_head(frag->netmem);
+
+			if (is_pp_netmem(netmem))
+				pr_err("%s", str);
+		}
+	}
+}
+EXPORT_SYMBOL(is_skb_valid);
