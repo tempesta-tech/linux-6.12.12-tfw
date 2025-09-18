@@ -952,7 +952,7 @@ static struct crypto_template cryptd_tmpl = {
 
 #ifdef CONFIG_SECURITY_TEMPESTA
 
-#define MAX_CACHED_ALG_COUNT	8
+#define MAX_CACHED_ALG_COUNT	32
 struct alg_cache {
 	int n;
 	spinlock_t lock;
@@ -968,6 +968,23 @@ static struct alg_cache skcipher_alg_cache;
 static struct alg_cache ahash_alg_cache;
 static struct alg_cache aead_alg_cache;
 
+static inline struct crypto_alg *
+__cryptd_find_alg(const char *cryptd_alg_name, u32 type, u32 mask,
+		  struct alg_cache *__restrict ac)
+{
+	int k;
+
+	for (k = 0; k < ac->n; k++) {
+		if (strcmp(ac->a[k].alg_name, cryptd_alg_name) == 0
+		    && ac->a[k].type == type && ac->a[k].mask == mask)
+		{
+			return ac->a[k].alg;
+		}
+	}
+
+	return NULL;
+}
+
 /*
  * Finds a previously allocated algorithm or allocates a new one. In any case,
  * returned alg holds at least one reference to its module.
@@ -978,18 +995,12 @@ cryptd_find_alg_cached(const char *cryptd_alg_name, u32 type, u32 mask,
 		       struct alg_cache *__restrict ac)
 {
 	struct crypto_alg *alg;
-	int k;
 
 	spin_lock(&ac->lock);
-	for (k = 0; k < ac->n; k++) {
-		if (strcmp(ac->a[k].alg_name, cryptd_alg_name) == 0
-		    && ac->a[k].type == type && ac->a[k].mask == mask)
-		{
-			spin_unlock(&ac->lock);
-			return ac->a[k].alg;
-		}
-	}
+	alg = __cryptd_find_alg(cryptd_alg_name, type, mask, ac);
 	spin_unlock(&ac->lock);
+	if (likely(alg))
+		return alg;
 
 	/* Searching for the algorithm may sleep, so warn about it. */
 	WARN_ON_ONCE(in_serving_softirq());
@@ -999,6 +1010,21 @@ cryptd_find_alg_cached(const char *cryptd_alg_name, u32 type, u32 mask,
 		return alg;
 
 	spin_lock(&ac->lock);
+
+	/*
+	 * We unlock spinlock during searching for the algorithm.
+	 * So there is a chance that two separate threads not
+	 * find algorithm in cache and will be here and add the
+	 * same algorithm to the cache. To prevent it check
+	 * algorithm presense in cache again.
+	 */
+	if (unlikely(__cryptd_find_alg(cryptd_alg_name, type,
+				       mask, ac) == alg))
+	{
+		spin_unlock(&ac->lock);
+		return alg;
+	}
+
 	if (ac->n >= MAX_CACHED_ALG_COUNT) {
 		spin_unlock(&ac->lock);
 		BUG();
