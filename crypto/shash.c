@@ -243,6 +243,9 @@ struct crypto_shash *crypto_alloc_shash(const char *alg_name, u32 type,
 {
 	return crypto_alloc_tfm(alg_name, &crypto_shash_type, type, mask);
 }
+#ifdef CONFIG_SECURITY_TEMPESTA
+ALLOW_ERROR_INJECTION(crypto_alloc_shash, ERRNO);
+#endif
 EXPORT_SYMBOL_GPL(crypto_alloc_shash);
 
 int crypto_has_shash(const char *alg_name, u32 type, u32 mask)

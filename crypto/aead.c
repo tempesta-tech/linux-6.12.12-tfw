@@ -200,6 +200,9 @@ struct crypto_aead *crypto_alloc_aead(const char *alg_name, u32 type, u32 mask)
 {
 	return crypto_alloc_tfm(alg_name, &crypto_aead_type, type, mask);
 }
+#ifdef CONFIG_SECURITY_TEMPESTA
+ALLOW_ERROR_INJECTION(crypto_alloc_aead, ERRNO);
+#endif
 EXPORT_SYMBOL_GPL(crypto_alloc_aead);
 
 int crypto_has_aead(const char *alg_name, u32 type, u32 mask)

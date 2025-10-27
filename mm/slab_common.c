@@ -352,6 +352,9 @@ out_unlock:
 	}
 	return s;
 }
+#ifdef CONFIG_SECURITY_TEMPESTA
+ALLOW_ERROR_INJECTION(__kmem_cache_create_args, NULL);
+#endif
 EXPORT_SYMBOL(__kmem_cache_create_args);
 
 static struct kmem_cache *kmem_buckets_cache __ro_after_init;
