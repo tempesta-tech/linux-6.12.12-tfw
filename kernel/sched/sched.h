@@ -1751,6 +1751,29 @@ static inline void rq_unpin_lock(struct rq *rq, struct rq_flags *rf)
 	lockdep_unpin_lock(__rq_lockp(rq), rf->cookie);
 }
 
+static inline void tfw_rq_unpin_lock(struct rq *rq, struct rq_flags *rf, 
+					bool old)
+{
+#ifdef CONFIG_SCHED_DEBUG
+        if (rq->clock_update_flags > RQCF_ACT_SKIP)
+                rf->clock_update_flags = RQCF_UPDATED;
+#endif
+
+        tfw_lockdep_unpin_lock(__rq_lockp(rq), rf->cookie, old);
+}
+
+static inline void tfw_tfw_rq_unpin_lock(struct rq *rq, struct rq_flags *rf)
+{
+#ifdef CONFIG_SCHED_DEBUG
+        if (rq->clock_update_flags > RQCF_ACT_SKIP)
+                rf->clock_update_flags = RQCF_UPDATED;
+#endif
+
+        tfw_tfw_lockdep_unpin_lock(__rq_lockp(rq), rf->cookie);
+}
+
+
+
 static inline void rq_repin_lock(struct rq *rq, struct rq_flags *rf)
 {
 	lockdep_repin_lock(__rq_lockp(rq), rf->cookie);

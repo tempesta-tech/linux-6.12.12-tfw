@@ -100,6 +100,7 @@ static inline void reinit_completion(struct completion *x)
 }
 
 extern void wait_for_completion(struct completion *);
+extern void tfw_wait_for_completion(struct completion *);
 extern void wait_for_completion_io(struct completion *);
 extern int wait_for_completion_interruptible(struct completion *x);
 extern int wait_for_completion_killable(struct completion *x);

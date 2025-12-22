@@ -48,6 +48,31 @@
 #include <linux/uidgid_types.h>
 #include <asm/kmap_size.h>
 
+extern int tfw_debug_cpu;
+extern unsigned long int tfw_xxx;
+extern unsigned long int tfw_xxx_1;
+extern unsigned long int tfw_xxx_2;
+extern unsigned long int tfw_xxx_3;
+extern unsigned long int tfw_xxx_4;
+extern unsigned long int tfw_xxx_5;
+
+extern unsigned long int tfw_xxx_6;
+extern unsigned long int tfw_xxx_7;
+extern unsigned long int tfw_xxx_8;
+extern unsigned long int tfw_xxx_9;
+extern unsigned long int tfw_xxx_10;
+
+extern unsigned long int tfw_xxx_11;
+extern unsigned long int tfw_xxx_12;
+extern unsigned long int tfw_xxx_13;
+extern unsigned long int tfw_xxx_14;
+extern unsigned long int tfw_xxx_15;
+
+extern struct task_struct *pp;
+extern struct task_struct *nn;
+
+extern DEFINE_PER_CPU(long long int, ccc_xxx); 
+
 /* task_struct member predeclarations (sorted alphabetically): */
 struct audit_context;
 struct bio_list;
@@ -311,11 +336,13 @@ extern void sched_tick(void);
 #define	MAX_SCHEDULE_TIMEOUT		LONG_MAX
 
 extern long schedule_timeout(long timeout);
+extern long tfw_schedule_timeout(long timeout);
 extern long schedule_timeout_interruptible(long timeout);
 extern long schedule_timeout_killable(long timeout);
 extern long schedule_timeout_uninterruptible(long timeout);
 extern long schedule_timeout_idle(long timeout);
 asmlinkage void schedule(void);
+asmlinkage void tfw_schedule(void);
 extern void schedule_preempt_disabled(void);
 asmlinkage void preempt_schedule_irq(void);
 #ifdef CONFIG_PREEMPT_RT
@@ -2026,6 +2053,7 @@ static inline int test_tsk_need_resched(struct task_struct *tsk)
  */
 #if !defined(CONFIG_PREEMPTION) || defined(CONFIG_PREEMPT_DYNAMIC)
 extern int __cond_resched(void);
+extern int __cond_resched_tfw(void);
 
 #if defined(CONFIG_PREEMPT_DYNAMIC) && defined(CONFIG_HAVE_PREEMPT_DYNAMIC_CALL)
 
@@ -2033,10 +2061,16 @@ void sched_dynamic_klp_enable(void);
 void sched_dynamic_klp_disable(void);
 
 DECLARE_STATIC_CALL(cond_resched, __cond_resched);
+DECLARE_STATIC_CALL(cond_resched_tfw, __cond_resched_tfw);
 
 static __always_inline int _cond_resched(void)
 {
 	return static_call_mod(cond_resched)();
+}
+
+static __always_inline int _cond_resched_tfw(void)
+{
+        return static_call_mod(cond_resched_tfw)();
 }
 
 #elif defined(CONFIG_PREEMPT_DYNAMIC) && defined(CONFIG_HAVE_PREEMPT_DYNAMIC_KEY)
@@ -2072,6 +2106,12 @@ static inline int _cond_resched(void)
 	__might_resched(__FILE__, __LINE__, 0);	\
 	_cond_resched();			\
 })
+
+#define cond_resched_tfw() ({                   \
+        __might_resched(__FILE__, __LINE__, 0); \
+        _cond_resched_tfw();                    \
+})
+
 
 extern int __cond_resched_lock(spinlock_t *lock);
 extern int __cond_resched_rwlock_read(rwlock_t *lock);

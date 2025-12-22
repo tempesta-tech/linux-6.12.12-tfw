@@ -130,8 +130,8 @@ static void check_hung_task(struct task_struct *t, unsigned long timeout)
 	if (sysctl_hung_task_warnings || hung_task_call_panic) {
 		if (sysctl_hung_task_warnings > 0)
 			sysctl_hung_task_warnings--;
-		pr_err("INFO: task %s:%d blocked for more than %ld seconds.\n",
-		       t->comm, t->pid, (jiffies - t->last_switch_time) / HZ);
+		pr_err("INFO: task %s:%d blocked for more than %ld seconds tfw_debug_cpu %d xxx %lu | %lu %lu %lu %lu %lu | %lu %lu %lu %lu %lu | %lu %lu %lu %lu %lu %s %s cpu %d\n",
+		       t->comm, t->pid, (jiffies - t->last_switch_time) / HZ, tfw_debug_cpu, tfw_xxx, tfw_xxx_1, tfw_xxx_2, tfw_xxx_3, tfw_xxx_4, tfw_xxx_5, tfw_xxx_6, tfw_xxx_7, tfw_xxx_8, tfw_xxx_9, tfw_xxx_10, tfw_xxx_11, tfw_xxx_12, tfw_xxx_13, tfw_xxx_14, tfw_xxx_15, pp ? pp->comm : "NULL", nn ? nn->comm : "NULL", smp_processor_id());
 		pr_err("      %s %s %.*s\n",
 			print_tainted(), init_utsname()->release,
 			(int)strcspn(init_utsname()->version, " "),

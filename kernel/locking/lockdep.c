@@ -5949,13 +5949,89 @@ void lock_unpin_lock(struct lockdep_map *lock, struct pin_cookie cookie)
 
 	raw_local_irq_save(flags);
 	check_flags(flags);
-
 	lockdep_recursion_inc();
 	__lock_unpin_lock(lock, cookie);
 	lockdep_recursion_finish();
 	raw_local_irq_restore(flags);
 }
 EXPORT_SYMBOL_GPL(lock_unpin_lock);
+
+void tfw_lock_unpin_lock(struct lockdep_map *lock, struct pin_cookie cookie, bool old)
+{
+        unsigned long flags;
+
+        if (unlikely(!lockdep_enabled()))
+                return;
+
+	if (old)
+		tfw_xxx_3 = 0;
+
+        raw_local_irq_save(flags);
+        check_flags(flags);
+
+	if (old)
+		tfw_xxx_3 += 1000000;
+
+        lockdep_recursion_inc();
+
+	if (old)
+                tfw_xxx_3 += 2000000;
+
+        __lock_unpin_lock(lock, cookie);
+
+	if (old)
+                tfw_xxx_3 += 3000000;
+
+        lockdep_recursion_finish();
+
+	if (old)
+                tfw_xxx_3 += 4000000;
+
+        raw_local_irq_restore(flags);
+
+	if (old)
+                tfw_xxx_3 += 5000000;
+
+	if (old)
+		tfw_xxx_3 = 0;
+}
+EXPORT_SYMBOL_GPL(tfw_lock_unpin_lock);
+
+void tfw_tfw_lock_unpin_lock(struct lockdep_map *lock, struct pin_cookie cookie)
+{
+        unsigned long flags;
+
+	tfw_xxx_13 = 0;
+
+        if (unlikely(!lockdep_enabled()))
+                return;
+
+	tfw_xxx_13 = 1000;
+
+        raw_local_irq_save(flags);
+        check_flags(flags);
+
+	tfw_xxx_13 += 10000;
+
+        lockdep_recursion_inc();
+
+        tfw_xxx_13 += 100000;
+
+        __lock_unpin_lock(lock, cookie);
+
+        tfw_xxx_13 += 1000000;
+
+        lockdep_recursion_finish();
+
+        tfw_xxx_13 += 10000000;
+
+        raw_local_irq_restore(flags);
+
+        tfw_xxx_13 = 0;
+}
+EXPORT_SYMBOL_GPL(tfw_lock_unpin_lock);
+
+
 
 #ifdef CONFIG_LOCK_STAT
 static void print_lock_contention_bug(struct task_struct *curr,

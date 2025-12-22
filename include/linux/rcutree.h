@@ -38,6 +38,7 @@ void kvfree_call_rcu(struct rcu_head *head, void *ptr);
 void kvfree_rcu_barrier(void);
 
 void rcu_barrier(void);
+void tfw_rcu_barrier(int cpu);
 void rcu_momentary_eqs(void);
 void kfree_rcu_scheduler_running(void);
 bool rcu_gp_might_be_stalled(void);

@@ -9,8 +9,16 @@ struct task_struct; /* one of the stranger aspects of C forward declarations */
 struct task_struct *__switch_to_asm(struct task_struct *prev,
 				    struct task_struct *next);
 
+struct task_struct *tfw__switch_to_asm(struct task_struct *prev,
+				    struct task_struct *next);
+
+
+
 __visible struct task_struct *__switch_to(struct task_struct *prev,
 					  struct task_struct *next);
+__visible struct task_struct *tfw__switch_to(struct task_struct *prev,
+					  struct task_struct *next);
+
 
 asmlinkage void ret_from_fork_asm(void);
 __visible void ret_from_fork(struct task_struct *prev, struct pt_regs *regs,
@@ -50,6 +58,13 @@ struct fork_frame {
 do {									\
 	((last) = __switch_to_asm((prev), (next)));			\
 } while (0)
+
+#define tfw_switch_to(prev, next, last)					\
+do {									\
+	((last) = tfw__switch_to_asm((prev), (next)));			\
+} while (0)
+
+
 
 #ifdef CONFIG_X86_32
 static inline void refresh_sysenter_cs(struct thread_struct *thread)

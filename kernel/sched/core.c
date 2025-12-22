@@ -119,6 +119,51 @@ EXPORT_TRACEPOINT_SYMBOL_GPL(sched_compute_energy_tp);
 
 DEFINE_PER_CPU_SHARED_ALIGNED(struct rq, runqueues);
 
+struct task_struct *pp;
+EXPORT_SYMBOL(pp);
+struct task_struct *nn;
+EXPORT_SYMBOL(nn);
+
+int tfw_debug_cpu = -1;
+EXPORT_SYMBOL(tfw_debug_cpu);
+unsigned long int tfw_xxx = 0;
+EXPORT_SYMBOL(tfw_xxx);
+unsigned long int tfw_xxx_1 = 0;
+EXPORT_SYMBOL(tfw_xxx_1);
+unsigned long int tfw_xxx_2 = 0;
+EXPORT_SYMBOL(tfw_xxx_2);
+unsigned long int tfw_xxx_3 = 0;
+EXPORT_SYMBOL(tfw_xxx_3);
+unsigned long int tfw_xxx_4 = 0;
+EXPORT_SYMBOL(tfw_xxx_4);
+unsigned long int tfw_xxx_5 = 0;
+EXPORT_SYMBOL(tfw_xxx_5);
+
+unsigned long int tfw_xxx_6 = 0;
+EXPORT_SYMBOL(tfw_xxx_6);
+unsigned long int tfw_xxx_7 = 0;
+EXPORT_SYMBOL(tfw_xxx_7);
+unsigned long int tfw_xxx_8 = 0;
+EXPORT_SYMBOL(tfw_xxx_8);
+unsigned long int tfw_xxx_9 = 0;
+EXPORT_SYMBOL(tfw_xxx_9);
+unsigned long int tfw_xxx_10 = 0;
+EXPORT_SYMBOL(tfw_xxx_10);
+
+unsigned long int tfw_xxx_11 = 0;
+EXPORT_SYMBOL(tfw_xxx_11);
+unsigned long int tfw_xxx_12 = 0;
+EXPORT_SYMBOL(tfw_xxx_12);
+unsigned long int tfw_xxx_13 = 0;
+EXPORT_SYMBOL(tfw_xxx_13);
+unsigned long int tfw_xxx_14 = 0;
+EXPORT_SYMBOL(tfw_xxx_14);
+unsigned long int tfw_xxx_15 = 0;
+EXPORT_SYMBOL(tfw_xxx_15);
+
+DEFINE_PER_CPU(long long int, ccc_xxx); 
+EXPORT_SYMBOL(ccc_xxx);
+
 #ifdef CONFIG_SCHED_DEBUG
 /*
  * Debugging: various feature bits
@@ -5055,20 +5100,74 @@ static inline void __balance_callbacks(struct rq *rq)
 #endif
 
 static inline void
-prepare_lock_switch(struct rq *rq, struct task_struct *next, struct rq_flags *rf)
+prepare_lock_switch(struct rq *rq, struct task_struct *next, struct rq_flags *rf,
+		bool old)
 {
+	if (old)
+		tfw_xxx_2 = 0;
+
 	/*
 	 * Since the runqueue lock will be released by the next
 	 * task (which is an invalid locking op but in the case
 	 * of the scheduler it's an obvious special-case), so we
 	 * do an early lockdep release here:
 	 */
-	rq_unpin_lock(rq, rf);
+	if (old) {
+                tfw_xxx += 200000;
+		tfw_xxx_2 += 200000;
+	}
+
+	tfw_rq_unpin_lock(rq, rf, old);
+
+	if (old) {
+                tfw_xxx += 300000;
+		tfw_xxx_2 += 300000;
+	}
+
+
 	spin_release(&__rq_lockp(rq)->dep_map, _THIS_IP_);
+
+	if (old) {
+                tfw_xxx += 400000;
+		tfw_xxx_2 += 400000;
+	}
+
 #ifdef CONFIG_DEBUG_SPINLOCK
 	/* this is a valid case when another task releases the spinlock */
 	rq_lockp(rq)->owner = next;
 #endif
+
+	if (old)
+		tfw_xxx_2 = 0;
+}
+
+static inline void
+tfw_prepare_lock_switch(struct rq *rq, struct task_struct *next, struct rq_flags *rf)
+{
+	tfw_xxx_12 = 0;
+
+	/*
+	 * Since the runqueue lock will be released by the next
+	 * task (which is an invalid locking op but in the case
+	 * of the scheduler it's an obvious special-case), so we
+	 * do an early lockdep release here:
+	 */
+	tfw_xxx_12 += 1000;
+
+	tfw_tfw_rq_unpin_lock(rq, rf);
+
+	tfw_xxx_2 += 10000;
+
+	spin_release(&__rq_lockp(rq)->dep_map, _THIS_IP_);
+
+	tfw_xxx_12 += 100000;
+
+#ifdef CONFIG_DEBUG_SPINLOCK
+	/* this is a valid case when another task releases the spinlock */
+	rq_lockp(rq)->owner = next;
+#endif
+
+	tfw_xxx_12 = 0;
 }
 
 static inline void finish_lock_switch(struct rq *rq)
@@ -5273,8 +5372,12 @@ static __always_inline struct rq *
 context_switch(struct rq *rq, struct task_struct *prev,
 	       struct task_struct *next, struct rq_flags *rf)
 {
-	prepare_task_switch(rq, prev, next);
+	bool old = (tfw_debug_cpu == smp_processor_id());
+	
+	if (old)
+		tfw_xxx_1 = 0;
 
+	prepare_task_switch(rq, prev, next);
 	/*
 	 * For paravirt, this is coupled with an exit in switch_to to
 	 * combine the page table reload and the switch backend into
@@ -5323,14 +5426,123 @@ context_switch(struct rq *rq, struct task_struct *prev,
 	/* switch_mm_cid() requires the memory barriers above. */
 	switch_mm_cid(rq, prev, next);
 
-	prepare_lock_switch(rq, next, rf);
+	if (old) {
+		tfw_xxx += 1000;
+		tfw_xxx_1 += 1000;
+	}
+
+	prepare_lock_switch(rq, next, rf, old);
+
+	if (old) {
+		tfw_xxx += 2000;
+		tfw_xxx_1 += 2000;
+	}
 
 	/* Here we just switch the register state and the stack. */
 	switch_to(prev, next, prev);
+
+	if (old) {
+		tfw_xxx += 3000;
+		tfw_xxx_1 += 3000;
+	}
+
 	barrier();
+
+	if (old)
+		tfw_xxx_1 = 0;
 
 	return finish_task_switch(prev);
 }
+
+static __always_inline struct rq *
+tfw_context_switch(struct rq *rq, struct task_struct *prev,
+	       struct task_struct *next, struct rq_flags *rf)
+{
+	struct rq * rcc;
+	tfw_xxx_11 = 0;
+
+	prepare_task_switch(rq, prev, next);
+	/*
+	 * For paravirt, this is coupled with an exit in switch_to to
+	 * combine the page table reload and the switch backend into
+	 * one hypercall.
+	 */
+	arch_start_context_switch(prev);
+
+	/*
+	 * kernel -> kernel   lazy + transfer active
+	 *   user -> kernel   lazy + mmgrab_lazy_tlb() active
+	 *
+	 * kernel ->   user   switch + mmdrop_lazy_tlb() active
+	 *   user ->   user   switch
+	 *
+	 * switch_mm_cid() needs to be updated if the barriers provided
+	 * by context_switch() are modified.
+	 */
+
+	tfw_xxx_11 += 1000;
+
+	if (!next->mm) {                                // to kernel
+		enter_lazy_tlb(prev->active_mm, next);
+
+		next->active_mm = prev->active_mm;
+		if (prev->mm)                           // from user
+			mmgrab_lazy_tlb(prev->active_mm);
+		else
+			prev->active_mm = NULL;
+	} else {                                        // to user
+		membarrier_switch_mm(rq, prev->active_mm, next->mm);
+		/*
+		 * sys_membarrier() requires an smp_mb() between setting
+		 * rq->curr / membarrier_switch_mm() and returning to userspace.
+		 *
+		 * The below provides this either through switch_mm(), or in
+		 * case 'prev->active_mm == next->mm' through
+		 * finish_task_switch()'s mmdrop().
+		 */
+		switch_mm_irqs_off(prev->active_mm, next->mm, next);
+		lru_gen_use_mm(next->mm);
+
+		if (!prev->mm) {                        // from kernel
+			/* will mmdrop_lazy_tlb() in finish_task_switch(). */
+			rq->prev_mm = prev->active_mm;
+			prev->active_mm = NULL;
+		}
+	}
+
+	tfw_xxx_11 += 10000;
+
+	/* switch_mm_cid() requires the memory barriers above. */
+	switch_mm_cid(rq, prev, next);
+
+	tfw_xxx_11 += 100000;
+
+	tfw_prepare_lock_switch(rq, next, rf);
+
+	tfw_xxx_11 += 1000000;
+
+	nn = next;
+	pp = prev;
+
+	/* Here we just switch the register state and the stack. */
+	tfw_switch_to(prev, next, prev);
+
+	nn = NULL;
+	pp = NULL;
+
+	tfw_xxx_11 += 10000000;
+
+	barrier();
+
+	tfw_xxx_11 += 100000000;
+
+	rcc = finish_task_switch(prev);
+
+	tfw_xxx_11 = 0;
+
+	return rcc;
+}
+
 
 /*
  * nr_running and nr_context_switches:
@@ -6546,7 +6758,7 @@ pick_next_task(struct rq *rq, struct task_struct *prev, struct rq_flags *rf)
  *
  * WARNING: must be called with preemption disabled!
  */
-static void __sched notrace __schedule(int sched_mode)
+static void __sched notrace __schedule(int sched_mode, bool alfa)
 {
 	struct task_struct *prev, *next;
 	/*
@@ -6590,7 +6802,12 @@ static void __sched notrace __schedule(int sched_mode)
 	 * barrier matches a full barrier in the proximity of the membarrier
 	 * system call exit.
 	 */
+	if (alfa)
+		printk(KERN_ALERT "__schedule 111i %s\n", prev->comm);
 	rq_lock(rq, &rf);
+	if (alfa)
+                printk(KERN_ALERT "__schedule 111 %s\n", prev->comm);
+
 	smp_mb__after_spinlock();
 
 	/* Promote REQ to ACT */
@@ -6699,6 +6916,178 @@ picked:
 	}
 }
 
+static void __sched notrace tfw___schedule(int sched_mode, bool alfa)
+{
+	struct task_struct *prev, *next;
+	/*
+	 * On PREEMPT_RT kernel, SM_RTLOCK_WAIT is noted
+	 * as a preemption by schedule_debug() and RCU.
+	 */
+	bool preempt = sched_mode > SM_NONE;
+	bool block = false;
+	unsigned long *switch_count;
+	unsigned long prev_state;
+	struct rq_flags rf;
+	struct rq *rq;
+	int cpu;
+
+	tfw_xxx_9 = 0;
+
+	cpu = smp_processor_id();
+	rq = cpu_rq(cpu);
+	prev = rq->curr;
+
+	schedule_debug(prev, preempt);
+
+	if (sched_feat(HRTICK) || sched_feat(HRTICK_DL))
+		hrtick_clear(rq);
+
+	local_irq_disable();
+	rcu_note_context_switch(preempt);
+
+	/*
+	 * Make sure that signal_pending_state()->signal_pending() below
+	 * can't be reordered with __set_current_state(TASK_INTERRUPTIBLE)
+	 * done by the caller to avoid the race with signal_wake_up():
+	 *
+	 * __set_current_state(@state)		signal_wake_up()
+	 * schedule()				  set_tsk_thread_flag(p, TIF_SIGPENDING)
+	 *					  wake_up_state(p, state)
+	 *   LOCK rq->lock			    LOCK p->pi_state
+	 *   smp_mb__after_spinlock()		    smp_mb__after_spinlock()
+	 *     if (signal_pending_state())	    if (p->state & @state)
+	 *
+	 * Also, the membarrier system call requires a full memory barrier
+	 * after coming from user-space, before storing to rq->curr; this
+	 * barrier matches a full barrier in the proximity of the membarrier
+	 * system call exit.
+	 */
+	
+	tfw_xxx_9 = 1000;
+	
+	rq_lock(rq, &rf);
+
+	tfw_xxx_9 += 10000;
+
+	smp_mb__after_spinlock();
+
+	/* Promote REQ to ACT */
+	rq->clock_update_flags <<= 1;
+	update_rq_clock(rq);
+	rq->clock_update_flags = RQCF_UPDATED;
+
+	switch_count = &prev->nivcsw;
+
+	/* Task state changes only considers SM_PREEMPT as preemption */
+	preempt = sched_mode == SM_PREEMPT;
+
+	tfw_xxx_9 += 100000;
+
+	/*
+	 * We must load prev->state once (task_struct::state is volatile), such
+	 * that we form a control dependency vs deactivate_task() below.
+	 */
+	prev_state = READ_ONCE(prev->__state);
+	if (sched_mode == SM_IDLE) {
+		/* SCX must consult the BPF scheduler to tell if rq is empty */
+		if (!rq->nr_running && !scx_enabled()) {
+			next = prev;
+			goto picked;
+		}
+	} else if (!preempt && prev_state) {
+		if (signal_pending_state(prev_state, prev)) {
+			WRITE_ONCE(prev->__state, TASK_RUNNING);
+		} else {
+			int flags = DEQUEUE_NOCLOCK;
+
+			prev->sched_contributes_to_load =
+				(prev_state & TASK_UNINTERRUPTIBLE) &&
+				!(prev_state & TASK_NOLOAD) &&
+				!(prev_state & TASK_FROZEN);
+
+			if (unlikely(is_special_task_state(prev_state)))
+				flags |= DEQUEUE_SPECIAL;
+
+			/*
+			 * __schedule()			ttwu()
+			 *   prev_state = prev->state;    if (p->on_rq && ...)
+			 *   if (prev_state)		    goto out;
+			 *     p->on_rq = 0;		  smp_acquire__after_ctrl_dep();
+			 *				  p->state = TASK_WAKING
+			 *
+			 * Where __schedule() and ttwu() have matching control dependencies.
+			 *
+			 * After this, schedule() must not care about p->state any more.
+			 */
+			block_task(rq, prev, flags);
+			block = true;
+		}
+		switch_count = &prev->nvcsw;
+	}
+
+	tfw_xxx_9 += 1000000;
+
+	next = pick_next_task(rq, prev, &rf);
+picked:
+	clear_tsk_need_resched(prev);
+	clear_preempt_need_resched();
+#ifdef CONFIG_SCHED_DEBUG
+	rq->last_seen_need_resched_ns = 0;
+#endif
+
+	tfw_xxx_9 += 10000000;
+
+	if (likely(prev != next)) {
+		rq->nr_switches++;
+		/*
+		 * RCU users of rcu_dereference(rq->curr) may not see
+		 * changes to task_struct made by pick_next_task().
+		 */
+		RCU_INIT_POINTER(rq->curr, next);
+		/*
+		 * The membarrier system call requires each architecture
+		 * to have a full memory barrier after updating
+		 * rq->curr, before returning to user-space.
+		 *
+		 * Here are the schemes providing that barrier on the
+		 * various architectures:
+		 * - mm ? switch_mm() : mmdrop() for x86, s390, sparc, PowerPC,
+		 *   RISC-V.  switch_mm() relies on membarrier_arch_switch_mm()
+		 *   on PowerPC and on RISC-V.
+		 * - finish_lock_switch() for weakly-ordered
+		 *   architectures where spin_unlock is a full barrier,
+		 * - switch_to() for arm64 (weakly-ordered, spin_unlock
+		 *   is a RELEASE barrier),
+		 *
+		 * The barrier matches a full barrier in the proximity of
+		 * the membarrier system call entry.
+		 *
+		 * On RISC-V, this barrier pairing is also needed for the
+		 * SYNC_CORE command when switching between processes, cf.
+		 * the inline comments in membarrier_arch_switch_mm().
+		 */
+		++*switch_count;
+
+		migrate_disable_switch(rq, prev);
+		psi_account_irqtime(rq, prev, next);
+		psi_sched_switch(prev, next, block);
+
+		trace_sched_switch(preempt, prev, next, prev_state);
+
+		/* Also unlocks the rq: */
+		tfw_xxx_9 += 100000000;
+		rq = tfw_context_switch(rq, prev, next, &rf);
+	} else {
+		rq_unpin_lock(rq, &rf);
+		tfw_xxx_9 += 1000000000;
+		__balance_callbacks(rq);
+		raw_spin_rq_unlock_irq(rq);
+	}
+
+	tfw_xxx_9 = 0;
+}
+
+
 void __noreturn do_task_dead(void)
 {
 	/* Causes final put_task_struct in finish_task_switch(): */
@@ -6707,7 +7096,7 @@ void __noreturn do_task_dead(void)
 	/* Tell freezer to ignore us: */
 	current->flags |= PF_NOFREEZE;
 
-	__schedule(SM_NONE);
+	__schedule(SM_NONE, false);
 	BUG();
 
 	/* Avoid "noreturn function does return" - but don't continue if BUG() is a NOP: */
@@ -6768,9 +7157,21 @@ static __always_inline void __schedule_loop(int sched_mode)
 {
 	do {
 		preempt_disable();
-		__schedule(sched_mode);
+		__schedule(sched_mode, false);
 		sched_preempt_enable_no_resched();
 	} while (need_resched());
+}
+
+static __always_inline void tfw___schedule_loop(int sched_mode)
+{
+	tfw_xxx_8 = 0;
+	do {
+		preempt_disable();
+		tfw_xxx_8++;
+		tfw___schedule(sched_mode, false);
+		sched_preempt_enable_no_resched();
+	} while (need_resched());
+	tfw_xxx_8 = 0;
 }
 
 asmlinkage __visible void __sched schedule(void)
@@ -6787,6 +7188,22 @@ asmlinkage __visible void __sched schedule(void)
 	sched_update_worker(tsk);
 }
 EXPORT_SYMBOL(schedule);
+
+asmlinkage __visible void __sched tfw_schedule(void)
+{
+	struct task_struct *tsk = current;
+
+#ifdef CONFIG_RT_MUTEXES
+	lockdep_assert(!tsk->sched_rt_mutex);
+#endif
+
+	if (!task_is_running(tsk))
+		sched_submit_work(tsk);
+	tfw___schedule_loop(SM_NONE);
+	sched_update_worker(tsk);
+}
+EXPORT_SYMBOL(tfw_schedule);
+
 
 /*
  * synchronize_rcu_tasks() makes sure that no task is stuck in preempted
@@ -6809,7 +7226,7 @@ void __sched schedule_idle(void)
 	 */
 	WARN_ON_ONCE(current->__state);
 	do {
-		__schedule(SM_IDLE);
+		__schedule(SM_IDLE, false);
 	} while (need_resched());
 }
 
@@ -6852,7 +7269,7 @@ void __sched notrace schedule_rtlock(void)
 NOKPROBE_SYMBOL(schedule_rtlock);
 #endif
 
-static void __sched notrace preempt_schedule_common(void)
+static void __sched notrace preempt_schedule_common(bool alfa)
 {
 	do {
 		/*
@@ -6870,7 +7287,7 @@ static void __sched notrace preempt_schedule_common(void)
 		 */
 		preempt_disable_notrace();
 		preempt_latency_start(1);
-		__schedule(SM_PREEMPT);
+		__schedule(SM_PREEMPT, alfa);
 		preempt_latency_stop(1);
 		preempt_enable_no_resched_notrace();
 
@@ -6894,7 +7311,7 @@ asmlinkage __visible void __sched notrace preempt_schedule(void)
 	 */
 	if (likely(!preemptible()))
 		return;
-	preempt_schedule_common();
+	preempt_schedule_common(false);
 }
 NOKPROBE_SYMBOL(preempt_schedule);
 EXPORT_SYMBOL(preempt_schedule);
@@ -6963,7 +7380,7 @@ asmlinkage __visible void __sched notrace preempt_schedule_notrace(void)
 		 * an infinite recursion.
 		 */
 		prev_ctx = exception_enter();
-		__schedule(SM_PREEMPT);
+		__schedule(SM_PREEMPT, false);
 		exception_exit(prev_ctx);
 
 		preempt_latency_stop(1);
@@ -7013,7 +7430,7 @@ asmlinkage __visible void __sched preempt_schedule_irq(void)
 	do {
 		preempt_disable();
 		local_irq_enable();
-		__schedule(SM_PREEMPT);
+		__schedule(SM_PREEMPT, false);
 		local_irq_disable();
 		sched_preempt_enable_no_resched();
 	} while (need_resched());
@@ -7215,7 +7632,7 @@ out_unlock:
 int __sched __cond_resched(void)
 {
 	if (should_resched(0)) {
-		preempt_schedule_common();
+		preempt_schedule_common(false);
 		return 1;
 	}
 	/*
@@ -7235,6 +7652,32 @@ int __sched __cond_resched(void)
 	return 0;
 }
 EXPORT_SYMBOL(__cond_resched);
+
+int __sched __cond_resched_tfw(void)
+{
+        if (should_resched(0)) {
+                preempt_schedule_common(true);
+                return 1;
+        }
+        /*
+         * In preemptible kernels, ->rcu_read_lock_nesting tells the tick
+         * whether the current CPU is in an RCU read-side critical section,
+         * so the tick can report quiescent states even for CPUs looping
+         * in kernel context.  In contrast, in non-preemptible kernels,
+         * RCU readers leave no in-memory hints, which means that CPU-bound
+         * processes executing in kernel context might never report an
+         * RCU quiescent state.  Therefore, the following code causes
+         * cond_resched() to report a quiescent state, but only when RCU
+         * is in urgent need of one.
+         */
+#ifndef CONFIG_PREEMPT_RCU
+        rcu_all_qs();
+#endif
+        return 0;
+}
+EXPORT_SYMBOL(__cond_resched_tfw);
+
+
 #endif
 
 #ifdef CONFIG_PREEMPT_DYNAMIC
@@ -7243,6 +7686,12 @@ EXPORT_SYMBOL(__cond_resched);
 #define cond_resched_dynamic_disabled	((void *)&__static_call_return0)
 DEFINE_STATIC_CALL_RET0(cond_resched, __cond_resched);
 EXPORT_STATIC_CALL_TRAMP(cond_resched);
+
+#define cond_resched_tfw_dynamic_enabled    __cond_resched_tfw
+#define cond_resched_tfw_dynamic_disabled   ((void *)&__static_call_return0)
+DEFINE_STATIC_CALL_RET0(cond_resched_tfw, __cond_resched_tfw);
+EXPORT_STATIC_CALL_TRAMP(cond_resched_tfw);
+
 
 #define might_resched_dynamic_enabled	__cond_resched
 #define might_resched_dynamic_disabled	((void *)&__static_call_return0)

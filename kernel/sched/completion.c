@@ -105,6 +105,42 @@ do_wait_for_common(struct completion *x,
 }
 
 static inline long __sched
+tfw_do_wait_for_common(struct completion *x,
+		   long (*action)(long), long timeout, int state)
+{
+	tfw_xxx_4 = 0;
+	if (!x->done) {
+		DECLARE_SWAITQUEUE(wait);
+
+		do {
+			if (signal_pending_state(state, current)) {
+				timeout = -ERESTARTSYS;
+				break;
+			}
+			__prepare_to_swait(&x->wait, &wait);
+			__set_current_state(state);
+			raw_spin_unlock_irq(&x->wait.lock);
+			tfw_xxx_4++;
+			timeout = action(timeout);
+			raw_spin_lock_irq(&x->wait.lock);
+		} while (!x->done && timeout);
+		__finish_swait(&x->wait, &wait);
+		if (!x->done) {
+			tfw_xxx_4 = 0;
+			return timeout;
+		}
+	}
+	if (x->done != UINT_MAX)
+		x->done--;
+
+	tfw_xxx_4 = 0;
+
+	return timeout ?: 1;
+}
+
+
+
+static inline long __sched
 __wait_for_common(struct completion *x,
 		  long (*action)(long), long timeout, int state)
 {
@@ -121,11 +157,35 @@ __wait_for_common(struct completion *x,
 	return timeout;
 }
 
+static inline long __sched
+__tfw_wait_for_common(struct completion *x,
+		  long (*action)(long), long timeout, int state)
+{
+	might_sleep();
+
+	complete_acquire(x);
+
+	raw_spin_lock_irq(&x->wait.lock);
+	timeout = tfw_do_wait_for_common(x, action, timeout, state);
+	raw_spin_unlock_irq(&x->wait.lock);
+
+	complete_release(x);
+
+	return timeout;
+}
+
 static long __sched
 wait_for_common(struct completion *x, long timeout, int state)
 {
 	return __wait_for_common(x, schedule_timeout, timeout, state);
 }
+
+static long __sched
+tfw_wait_for_common(struct completion *x, long timeout, int state)
+{
+	return __tfw_wait_for_common(x, tfw_schedule_timeout, timeout, state);
+}
+
 
 static long __sched
 wait_for_common_io(struct completion *x, long timeout, int state)
@@ -148,6 +208,13 @@ void __sched wait_for_completion(struct completion *x)
 	wait_for_common(x, MAX_SCHEDULE_TIMEOUT, TASK_UNINTERRUPTIBLE);
 }
 EXPORT_SYMBOL(wait_for_completion);
+
+void __sched tfw_wait_for_completion(struct completion *x)
+{
+	tfw_wait_for_common(x, MAX_SCHEDULE_TIMEOUT, TASK_UNINTERRUPTIBLE);
+}
+EXPORT_SYMBOL(tfw_wait_for_completion);
+
 
 /**
  * wait_for_completion_timeout: - waits for completion of a task (w/timeout)

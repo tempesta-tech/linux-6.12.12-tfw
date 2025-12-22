@@ -712,6 +712,145 @@ __switch_to(struct task_struct *prev_p, struct task_struct *next_p)
 	return prev_p;
 }
 
+__no_kmsan_checks
+__visible __notrace_funcgraph struct task_struct *
+tfw__switch_to(struct task_struct *prev_p, struct task_struct *next_p)
+{
+	struct thread_struct *prev = &prev_p->thread;
+	struct thread_struct *next = &next_p->thread;
+	int cpu = smp_processor_id();
+
+	tfw_xxx_15 = 0;
+
+	WARN_ON_ONCE(IS_ENABLED(CONFIG_DEBUG_ENTRY) &&
+		     this_cpu_read(pcpu_hot.hardirq_stack_inuse));
+
+	if (!test_tsk_thread_flag(prev_p, TIF_NEED_FPU_LOAD)) {
+		tfw_xxx_15 += 10;
+		switch_fpu_prepare(prev_p, cpu);
+	}
+
+	tfw_xxx_15 += 100;
+
+	/* We must save %fs and %gs before load_TLS() because
+	 * %fs and %gs may be cleared by load_TLS().
+	 *
+	 * (e.g. xen_load_tls())
+	 */
+	save_fsgs(prev_p);
+
+	tfw_xxx_15 += 1000;
+
+	/*
+	 * Load TLS before restoring any segments so that segment loads
+	 * reference the correct GDT entries.
+	 */
+	load_TLS(next, cpu);
+
+	tfw_xxx_15 += 10000;
+
+	/*
+	 * Leave lazy mode, flushing any hypercalls made here.  This
+	 * must be done after loading TLS entries in the GDT but before
+	 * loading segments that might reference them.
+	 */
+	arch_end_context_switch(next_p);
+
+	tfw_xxx_15 += 100000;
+
+	/* Switch DS and ES.
+	 *
+	 * Reading them only returns the selectors, but writing them (if
+	 * nonzero) loads the full descriptor from the GDT or LDT.  The
+	 * LDT for next is loaded in switch_mm, and the GDT is loaded
+	 * above.
+	 *
+	 * We therefore need to write new values to the segment
+	 * registers on every context switch unless both the new and old
+	 * values are zero.
+	 *
+	 * Note that we don't need to do anything for CS and SS, as
+	 * those are saved and restored as part of pt_regs.
+	 */
+	savesegment(es, prev->es);
+
+	tfw_xxx_15 += 1000000;
+
+	if (unlikely(next->es | prev->es)) {
+		tfw_xxx_15 += 10000000;
+		loadsegment(es, next->es);
+	}
+
+	savesegment(ds, prev->ds);
+	if (unlikely(next->ds | prev->ds))
+		loadsegment(ds, next->ds);
+
+	tfw_xxx_15 += 10000000;
+
+	x86_fsgsbase_load(prev, next);
+
+	x86_pkru_load(prev, next);
+
+	/*
+	 * Switch the PDA and FPU contexts.
+	 */
+	raw_cpu_write(pcpu_hot.current_task, next_p);
+	raw_cpu_write(pcpu_hot.top_of_stack, task_top_of_stack(next_p));
+
+	tfw_xxx_15 += 100000000;
+
+	switch_fpu_finish(next_p);
+
+	/* Reload sp0. */
+	update_task_stack(next_p);
+
+	tfw_xxx_15 += 200000000;
+
+	switch_to_extra(prev_p, next_p);
+
+	tfw_xxx_15 += 300000000;
+
+	if (static_cpu_has_bug(X86_BUG_SYSRET_SS_ATTRS)) {
+		/*
+		 * AMD CPUs have a misfeature: SYSRET sets the SS selector but
+		 * does not update the cached descriptor.  As a result, if we
+		 * do SYSRET while SS is NULL, we'll end up in user mode with
+		 * SS apparently equal to __USER_DS but actually unusable.
+		 *
+		 * The straightforward workaround would be to fix it up just
+		 * before SYSRET, but that would slow down the system call
+		 * fast paths.  Instead, we ensure that SS is never NULL in
+		 * system call context.  We do this by replacing NULL SS
+		 * selectors at every context switch.  SYSCALL sets up a valid
+		 * SS, so the only way to get NULL is to re-enter the kernel
+		 * from CPL 3 through an interrupt.  Since that can't happen
+		 * in the same task as a running syscall, we are guaranteed to
+		 * context switch between every interrupt vector entry and a
+		 * subsequent SYSRET.
+		 *
+		 * We read SS first because SS reads are much faster than
+		 * writes.  Out of caution, we force SS to __KERNEL_DS even if
+		 * it previously had a different non-NULL value.
+		 */
+		unsigned short ss_sel;
+		savesegment(ss, ss_sel);
+		if (ss_sel != __KERNEL_DS)
+			loadsegment(ss, __KERNEL_DS);
+	}
+
+	tfw_xxx_15 += 300000000;
+
+
+	/* Load the Intel cache allocation PQR MSR. */
+	resctrl_sched_in(next_p);
+
+	tfw_xxx_15 = 444444;
+
+	return prev_p;
+}
+
+
+
 void set_personality_64bit(void)
 {
 	/* inherit personality from parent */

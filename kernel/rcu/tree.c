@@ -4487,12 +4487,22 @@ static void rcu_barrier_trace(const char *s, int cpu, unsigned long done)
 static void rcu_barrier_callback(struct rcu_head *rhp)
 {
 	unsigned long __maybe_unused s = rcu_state.barrier_sequence;
+	int qqq;
+	long long int *ccc = this_cpu_ptr(&ccc_xxx);
+	long long int prev = *ccc;
 
 	rhp->next = rhp; // Mark the callback as having been invoked.
-	if (atomic_dec_and_test(&rcu_state.barrier_cpu_count)) {
+	qqq = atomic_dec_return(&rcu_state.barrier_cpu_count);	
+	*ccc = -1;
+
+	if (!qqq) {
 		rcu_barrier_trace(TPS("LastCB"), -1, s);
 		complete(&rcu_state.barrier_completion);
+		printk(KERN_ALERT "BARRIER %d %ps %ps %ps %ps %ps prev %lld\n", smp_processor_id(),
+			__builtin_return_address(0), __builtin_return_address(1), __builtin_return_address(2), __builtin_return_address(3), __builtin_return_address(4), prev); 
 	} else {
+		printk(KERN_ALERT "qqq %d %d %ps %ps %ps %ps %ps prev %lld\n",
+			qqq, smp_processor_id(), __builtin_return_address(0), __builtin_return_address(1), __builtin_return_address(2), __builtin_return_address(3), __builtin_return_address(4), prev);
 		rcu_barrier_trace(TPS("CB"), -1, s);
 	}
 }
@@ -4653,6 +4663,118 @@ retry:
 	mutex_unlock(&rcu_state.barrier_mutex);
 }
 EXPORT_SYMBOL_GPL(rcu_barrier);
+
+void tfw_rcu_barrier(int cpu_x)
+{
+	uintptr_t cpu;
+	unsigned long flags;
+	unsigned long gseq;
+	struct rcu_data *rdp;
+	unsigned long s = rcu_seq_snap(&rcu_state.barrier_sequence);
+
+	tfw_xxx_5 = 0;
+
+	rcu_barrier_trace(TPS("Begin"), -1, s);
+
+	/* Take mutex to serialize concurrent rcu_barrier() requests. */
+	mutex_lock(&rcu_state.barrier_mutex);
+
+	tfw_xxx_5 += 1000;
+
+	/* Did someone else do our work for us? */
+	if (rcu_seq_done(&rcu_state.barrier_sequence, s)) {
+		rcu_barrier_trace(TPS("EarlyExit"), -1, rcu_state.barrier_sequence);
+		smp_mb(); /* caller's subsequent code after above check. */
+		mutex_unlock(&rcu_state.barrier_mutex);
+		
+		tfw_xxx_5 = 0;
+		return;
+	}
+
+	/* Mark the start of the barrier operation. */
+	raw_spin_lock_irqsave(&rcu_state.barrier_lock, flags);
+	rcu_seq_start(&rcu_state.barrier_sequence);
+	gseq = rcu_state.barrier_sequence;
+	rcu_barrier_trace(TPS("Inc1"), -1, rcu_state.barrier_sequence);
+
+	tfw_xxx_5 += 10000;
+
+	/*
+	 * Initialize the count to two rather than to zero in order
+	 * to avoid a too-soon return to zero in case of an immediate
+	 * invocation of the just-enqueued callback (or preemption of
+	 * this task).  Exclude CPU-hotplug operations to ensure that no
+	 * offline non-offloaded CPU has callbacks queued.
+	 */
+	init_completion(&rcu_state.barrier_completion);
+	atomic_set(&rcu_state.barrier_cpu_count, 2);
+	raw_spin_unlock_irqrestore(&rcu_state.barrier_lock, flags);
+
+	/*
+	 * Force each CPU with callbacks to register a new callback.
+	 * When that callback is invoked, we will know that all of the
+	 * corresponding CPU's preceding callbacks have been invoked.
+	 */
+	for_each_possible_cpu(cpu) {
+		rdp = per_cpu_ptr(&rcu_data, cpu);
+retry:
+		if (smp_load_acquire(&rdp->barrier_seq_snap) == gseq)
+			continue;
+		raw_spin_lock_irqsave(&rcu_state.barrier_lock, flags);
+		if (!rcu_segcblist_n_cbs(&rdp->cblist)) {
+			WRITE_ONCE(rdp->barrier_seq_snap, gseq);
+			raw_spin_unlock_irqrestore(&rcu_state.barrier_lock, flags);
+			rcu_barrier_trace(TPS("NQ"), cpu, rcu_state.barrier_sequence);
+			continue;
+		}
+		if (!rcu_rdp_cpu_online(rdp)) {
+			rcu_barrier_entrain(rdp);
+			WARN_ON_ONCE(READ_ONCE(rdp->barrier_seq_snap) != gseq);
+			raw_spin_unlock_irqrestore(&rcu_state.barrier_lock, flags);
+			rcu_barrier_trace(TPS("OfflineNoCBQ"), cpu, rcu_state.barrier_sequence);
+			continue;
+		}
+		raw_spin_unlock_irqrestore(&rcu_state.barrier_lock, flags);
+		if (smp_call_function_single(cpu, rcu_barrier_handler, (void *)cpu, 1)) {
+			schedule_timeout_uninterruptible(1);
+			goto retry;
+		}
+		WARN_ON_ONCE(READ_ONCE(rdp->barrier_seq_snap) != gseq);
+		rcu_barrier_trace(TPS("OnlineQ"), cpu, rcu_state.barrier_sequence);
+	}
+
+	/*
+	 * Now that we have an rcu_barrier_callback() callback on each
+	 * CPU, and thus each counted, remove the initial count.
+	 */
+	if (atomic_sub_and_test(2, &rcu_state.barrier_cpu_count))
+		complete(&rcu_state.barrier_completion);
+
+	tfw_xxx_5 += 1000000;
+
+	/* Wait for all rcu_barrier_callback() callbacks to be invoked. */
+	tfw_wait_for_completion(&rcu_state.barrier_completion);
+
+	tfw_xxx_5 += 444;
+
+	/* Mark the end of the barrier operation. */
+	rcu_barrier_trace(TPS("Inc2"), -1, rcu_state.barrier_sequence);
+	rcu_seq_end(&rcu_state.barrier_sequence);
+	gseq = rcu_state.barrier_sequence;
+	for_each_possible_cpu(cpu) {
+		rdp = per_cpu_ptr(&rcu_data, cpu);
+
+		WRITE_ONCE(rdp->barrier_seq_snap, gseq);
+	}
+
+	/* Other rcu_barrier() invocations can now safely proceed. */
+	mutex_unlock(&rcu_state.barrier_mutex);
+
+	tfw_xxx_5 = 0;
+}
+EXPORT_SYMBOL_GPL(tfw_rcu_barrier);
+
+
 
 static unsigned long rcu_barrier_last_throttle;
 
