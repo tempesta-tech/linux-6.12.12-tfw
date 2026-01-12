@@ -741,6 +741,12 @@ void tcp_adjust_pcount(struct sock *sk, const struct sk_buff *skb,
 void tcp_fragment_tstamp(struct sk_buff *skb, struct sk_buff *skb2);
 void tcp_skb_fragment_eor(struct sk_buff *skb, struct sk_buff *skb2);
 int tcp_close_state(struct sock *sk);
+u32 tcp_tso_segs(struct sock *sk, unsigned int mss_now);
+unsigned int tcp_mss_split_point(const struct sock *sk,
+				 const struct sk_buff *skb,
+				 unsigned int mss_now,
+				 unsigned int max_segs,
+				 int nonagle);
 #endif
 
 /* Read 'sendfile()'-style from a TCP socket */

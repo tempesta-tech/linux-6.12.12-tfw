@@ -4700,6 +4700,9 @@ onlymerged:
 
 	return shiftlen;
 }
+#ifdef CONFIG_SECURITY_TEMPESTA
+EXPORT_SYMBOL(skb_shift);
+#endif
 
 /**
  * skb_prepare_seq_read - Prepare a sequential read of skb data
