@@ -40,21 +40,13 @@ void blake2s_compress(struct blake2s_state *state, const u8 *block,
 		const size_t blocks = min_t(size_t, nblocks,
 					    SZ_4K / BLAKE2S_BLOCK_SIZE);
 
-#ifdef CONFIG_SECURITY_TEMPESTA
-		kernel_fpu_begin_mask_no_bh(KFPU_MXCSR);
-#else
 		kernel_fpu_begin();
-#endif
 		if (IS_ENABLED(CONFIG_AS_AVX512) &&
 		    static_branch_likely(&blake2s_use_avx512))
 			blake2s_compress_avx512(state, block, blocks, inc);
 		else
 			blake2s_compress_ssse3(state, block, blocks, inc);
-#ifdef CONFIG_SECURITY_TEMPESTA
-		kernel_fpu_end_no_bh();
-#else
 		kernel_fpu_end();
-#endif
 
 		nblocks -= blocks;
 		block += blocks * BLAKE2S_BLOCK_SIZE;
