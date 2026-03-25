@@ -444,19 +444,6 @@ void __kernel_fpu_begin_mask(unsigned int kfpu_mask)
 		asm volatile ("fninit");
 }
 
-#ifdef CONFIG_SECURITY_TEMPESTA
-void kernel_fpu_begin_mask_no_bh(unsigned int kfpu_mask)
-{
-	/* SoftIRQ in the Tempesta kernel always enables FPU. */
-	if (likely(in_serving_softirq()))
-		return;
-	preempt_disable();
-
-	__kernel_fpu_begin_mask(kfpu_mask);
-}
-EXPORT_SYMBOL_GPL(kernel_fpu_begin_mask_no_bh);
-#endif
-
 void kernel_fpu_begin_mask(unsigned int kfpu_mask)
 {
 #ifdef CONFIG_SECURITY_TEMPESTA
@@ -469,7 +456,8 @@ void kernel_fpu_begin_mask(unsigned int kfpu_mask)
 	 * preciseely that softirq uses FPU, so we have to disable softirq as
 	 * well as task preemption.
 	 */
-	local_bh_disable();
+	if (!irqs_disabled())
+		local_bh_disable();
 #endif
 	preempt_disable();
 
@@ -494,22 +482,11 @@ void kernel_fpu_end(void)
 
 	preempt_enable();
 #ifdef CONFIG_SECURITY_TEMPESTA
-	local_bh_enable();
+	if (!irqs_disabled())
+		local_bh_enable();
 #endif
 }
 EXPORT_SYMBOL_GPL(kernel_fpu_end);
-
-#ifdef CONFIG_SECURITY_TEMPESTA
-void kernel_fpu_end_no_bh(void)
-{
-	if (likely(in_serving_softirq()))
-		return;
-	__kernel_fpu_end_bh();
-
-	preempt_enable();
-}
-EXPORT_SYMBOL_GPL(kernel_fpu_end_no_bh);
-#endif
 
 /*
  * Sync the FPU register state to current's memory register state when the
