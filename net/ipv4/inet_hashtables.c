@@ -1027,8 +1027,18 @@ int __inet_hash_connect(struct inet_timewait_death_row *death_row,
 	if (!local_ports && remaining > 1)
 		remaining &= ~1U;
 
+	/*
+	 * TODO Remove it after #736 in Tempesta. We can sleep
+	 * after moving timers (which are used for reconnections)
+	 * to the kernel thread.
+	 */
+#ifdef CONFIG_SECURITY_TEMPESTA
+	get_random_once(table_perturb,
+			INET_TABLE_PERTURB_SIZE * sizeof(*table_perturb));
+#else
 	get_random_sleepable_once(table_perturb,
 				  INET_TABLE_PERTURB_SIZE * sizeof(*table_perturb));
+#endif
 	index = port_offset & (INET_TABLE_PERTURB_SIZE - 1);
 
 	offset = READ_ONCE(table_perturb[index]) + (port_offset >> 32);
