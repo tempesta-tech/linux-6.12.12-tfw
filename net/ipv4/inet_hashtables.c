@@ -40,6 +40,8 @@ u32 inet_ehashfn(const struct net *net, const __be32 laddr,
 }
 EXPORT_SYMBOL_GPL(inet_ehashfn);
 
+
+
 /* This function handles inet_sock, but also timewait and request sockets
  * for IPv4/IPv6.
  */
