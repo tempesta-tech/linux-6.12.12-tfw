@@ -54,6 +54,9 @@
 }					\
 )
 
+typedef void (*tfw_bug_reporter_t)(void); 
+extern tfw_bug_reporter_t tfw_reporter;
+
 struct completion;
 struct user;
 

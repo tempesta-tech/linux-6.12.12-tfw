@@ -21,6 +21,7 @@
 #include <linux/mm_types.h>
 #include <linux/mm.h>			/* find_and_lock_vma() */
 #include <linux/vmalloc.h>
+#include <linux/kernel.h>
 
 #include <asm/cpufeature.h>		/* boot_cpu_has, ...		*/
 #include <asm/traps.h>			/* dotraplinkage, ...		*/
@@ -40,6 +41,9 @@
 
 #define CREATE_TRACE_POINTS
 #include <asm/trace/exceptions.h>
+
+tfw_bug_reporter_t tfw_reporter = NULL;
+EXPORT_SYMBOL(tfw_reporter);
 
 /*
  * Returns 0 if mmiotrace is disabled, or if the fault is not
@@ -540,6 +544,9 @@ show_fault_oops(struct pt_regs *regs, unsigned long error_code, unsigned long ad
 	else
 		pr_alert("BUG: unable to handle page fault for address: %px\n",
 			(void *)address);
+
+	if (tfw_reporter)
+		tfw_reporter();
 
 	pr_alert("#PF: %s %s in %s mode\n",
 		 (error_code & X86_PF_USER)  ? "user" : "supervisor",
