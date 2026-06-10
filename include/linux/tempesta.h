@@ -39,6 +39,7 @@ typedef struct {
 
 struct socket_tempesta {
 	void	*class_prvt;
+	u16	training_epoch;
 };
 
 extern struct lsm_blob_sizes tempesta_blob_sizes;
