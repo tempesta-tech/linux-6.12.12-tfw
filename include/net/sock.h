@@ -979,6 +979,8 @@ enum sock_flags {
 	SOCK_RCVMARK, /* Receive SO_MARK  ancillary data with packet */
 #ifdef CONFIG_SECURITY_TEMPESTA
 	SOCK_TEMPESTA, /* The socket is managed by Tempesta FW */
+	SOCK_TEMPESTA_CLNT, /* The socket is client Tempesta FW socket. */
+	SOCK_TEMPESTA_SRV, /* The socket is server Tempesta FW socket. */
 	SOCK_TEMPESTA_HAS_DATA, /* The socket has data in Tempesta FW
 				 * write queue.
 				 */
@@ -2935,6 +2937,9 @@ int sock_set_timestamping(struct sock *sk, int optname,
 
 void sock_enable_timestamps(struct sock *sk);
 void sock_no_linger(struct sock *sk);
+#ifdef CONFIG_SECURITY_TEMPESTA
+void sock_set_keepalive_locked(struct sock *sk);
+#endif
 void sock_set_keepalive(struct sock *sk);
 void sock_set_priority(struct sock *sk, u32 priority);
 void sock_set_rcvbuf(struct sock *sk, int val);

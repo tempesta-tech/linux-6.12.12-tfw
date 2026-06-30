@@ -799,6 +799,10 @@ static void tcp_keepalive_timer (struct timer_list *t)
 	if (elapsed >= keepalive_time_when(tp)) {
 		u32 user_timeout = READ_ONCE(icsk->icsk_user_timeout);
 
+#ifdef CONFIG_SECURITY_TEMPESTA
+		if (sock_flag(sk, SOCK_TEMPESTA_CLNT))
+			goto reset;
+#endif
 		/* If the TCP_USER_TIMEOUT option is enabled, use that
 		 * to determine when to timeout instead.
 		 */
@@ -807,6 +811,9 @@ static void tcp_keepalive_timer (struct timer_list *t)
 		    icsk->icsk_probes_out > 0) ||
 		    (user_timeout == 0 &&
 		    icsk->icsk_probes_out >= keepalive_probes(tp))) {
+#ifdef CONFIG_SECURITY_TEMPESTA
+reset:
+#endif
 			tcp_send_active_reset(sk, GFP_ATOMIC,
 					      SK_RST_REASON_TCP_KEEPALIVE_TIMEOUT);
 			tcp_write_err(sk);

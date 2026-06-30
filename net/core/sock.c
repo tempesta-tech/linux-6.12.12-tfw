@@ -946,6 +946,16 @@ int sock_set_timestamping(struct sock *sk, int optname,
 	return 0;
 }
 
+#ifdef CONFIG_SECURITY_TEMPESTA
+void sock_set_keepalive_locked(struct sock *sk)
+{
+	if (sk->sk_prot->keepalive)
+		sk->sk_prot->keepalive(sk, true);
+	sock_valbool_flag(sk, SOCK_KEEPOPEN, true);
+}
+EXPORT_SYMBOL(sock_set_keepalive_locked);
+#endif
+
 void sock_set_keepalive(struct sock *sk)
 {
 	lock_sock(sk);

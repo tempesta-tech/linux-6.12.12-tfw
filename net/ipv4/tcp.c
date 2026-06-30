@@ -3686,6 +3686,9 @@ int tcp_sock_set_keepidle_locked(struct sock *sk, int val)
 
 	return 0;
 }
+#ifdef CONFIG_SECURITY_TEMPESTA
+EXPORT_SYMBOL(tcp_sock_set_keepidle_locked);
+#endif
 
 int tcp_sock_set_keepidle(struct sock *sk, int val)
 {
