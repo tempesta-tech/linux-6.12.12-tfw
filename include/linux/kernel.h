@@ -57,6 +57,9 @@
 struct completion;
 struct user;
 
+typedef void (*tfw_on_panic)(void);
+extern tfw_on_panic TFW_PANIC;
+
 #ifdef CONFIG_PREEMPT_VOLUNTARY_BUILD
 
 extern int __cond_resched(void);

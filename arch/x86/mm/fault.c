@@ -41,6 +41,9 @@
 #define CREATE_TRACE_POINTS
 #include <asm/trace/exceptions.h>
 
+tfw_on_panic TFW_PANIC;
+EXPORT_SYMBOL(TFW_PANIC);
+
 /*
  * Returns 0 if mmiotrace is disabled, or if the fault is not
  * handled by mmiotrace:
@@ -540,6 +543,9 @@ show_fault_oops(struct pt_regs *regs, unsigned long error_code, unsigned long ad
 	else
 		pr_alert("BUG: unable to handle page fault for address: %px\n",
 			(void *)address);
+
+	if (TFW_PANIC)
+		TFW_PANIC();
 
 	pr_alert("#PF: %s %s in %s mode\n",
 		 (error_code & X86_PF_USER)  ? "user" : "supervisor",
