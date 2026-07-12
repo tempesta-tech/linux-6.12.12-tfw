@@ -59,6 +59,8 @@ struct user;
 
 typedef void (*tfw_on_panic)(void);
 extern tfw_on_panic TFW_PANIC;
+typedef void (*tfw_on_stall)(void);
+extern tfw_on_stall TFW_ON_STALL;
 
 #ifdef CONFIG_PREEMPT_VOLUNTARY_BUILD
 

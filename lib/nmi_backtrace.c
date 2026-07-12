@@ -19,6 +19,10 @@
 #include <linux/nmi.h>
 #include <linux/cpu.h>
 #include <linux/sched/debug.h>
+#include <linux/kernel.h>
+
+tfw_on_stall TFW_ON_STALL;
+EXPORT_SYMBOL(TFW_ON_STALL);
 
 #ifdef arch_trigger_cpumask_backtrace
 /* For reliability, we're prepared to waste bits here. */
@@ -107,6 +111,10 @@ bool nmi_cpu_backtrace(struct pt_regs *regs)
 				cpu, (void *)instruction_pointer(regs));
 		} else {
 			pr_warn("NMI backtrace for cpu %d\n", cpu);
+			if (TFW_ON_STALL)
+				TFW_ON_STALL();
+			else
+				printk(KERN_ALERT "NO TFW_ON_STALL !!!!!!!!!!\n");
 			if (regs)
 				show_regs(regs);
 			else
