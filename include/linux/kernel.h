@@ -56,6 +56,10 @@
 
 struct completion;
 struct user;
+struct mm_struct;
+
+
+extern bool check_mm(struct mm_struct *mm);
 
 typedef void (*tfw_on_panic)(void);
 extern tfw_on_panic TFW_PANIC;
