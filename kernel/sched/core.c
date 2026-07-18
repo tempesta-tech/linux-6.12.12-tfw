@@ -10541,6 +10541,8 @@ void sched_mm_cid_after_execve(struct task_struct *t)
 	preempt_disable();
 	rq = this_rq();
 	scoped_guard (rq_lock_irqsave, rq) {
+		MmCidDbg *m;
+
 		preempt_enable_no_resched();	/* holding spinlock */
 		WRITE_ONCE(t->mm_cid_active, 1);
 		/*
@@ -10548,7 +10550,14 @@ void sched_mm_cid_after_execve(struct task_struct *t)
 		 * Matches barrier in sched_mm_cid_remote_clear_old().
 		 */
 		smp_mb();
+
+		m = this_cpu_ptr(&mm_cid_dbg);
+		memset(m, 0, sizeof(*m));
+		m->t1 = t;
+
 		t->last_mm_cid = t->mm_cid = mm_cid_get(rq, mm);
+
+		memset(m, 0, sizeof(*m));
 	}
 	rseq_set_notify_resume(t);
 }

@@ -57,7 +57,18 @@
 struct completion;
 struct user;
 struct mm_struct;
+struct task_struct;
 
+typedef struct mm_cid_dbg_t {
+	int stage1;
+	int stage2;
+	int stage3;
+	int stage4;
+	int stage5;
+	struct mm_struct *mm;
+	struct task_struct *t1;
+	struct task_struct *t2;
+} MmCidDbg;
 
 extern bool check_mm(struct mm_struct *mm);
 

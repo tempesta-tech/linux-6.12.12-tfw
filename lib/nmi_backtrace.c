@@ -20,6 +20,22 @@
 #include <linux/cpu.h>
 #include <linux/sched/debug.h>
 #include <linux/kernel.h>
+#include <linux/sched.h>
+
+DEFINE_PER_CPU(MmCidDbg, mm_cid_dbg);
+EXPORT_SYMBOL(mm_cid_dbg);
+
+static inline void
+kernel_mm_cid_on_stall(int cpu)
+{
+	MmCidDbg *m = per_cpu_ptr(&mm_cid_dbg, cpu);
+
+	printk(KERN_ALERT "stage %d %d %d %d %d %px %s %s\n",
+		m->stage1, m->stage2, m->stage3, m->stage4,
+		m->stage5, m->mm,
+		m->t1 ? m->t1->comm : "NULL",
+		m->t2 ? m->t2->comm : "NULL");
+}
 
 tfw_on_stall TFW_ON_STALL;
 EXPORT_SYMBOL(TFW_ON_STALL);
@@ -115,6 +131,8 @@ bool nmi_cpu_backtrace(struct pt_regs *regs)
 				TFW_ON_STALL();
 			else
 				printk(KERN_ALERT "NO TFW_ON_STALL !!!!!!!!!!\n");
+			kernel_mm_cid_on_stall(cpu);
+
 			if (regs)
 				show_regs(regs);
 			else

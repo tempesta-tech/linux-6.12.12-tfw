@@ -69,6 +69,8 @@
 #include <linux/wait_bit.h>
 #include <linux/workqueue_api.h>
 #include <linux/delayacct.h>
+#include <linux/kernel.h>
+#include <linux/percpu.h>
 
 #include <trace/events/power.h>
 #include <trace/events/sched.h>
@@ -3639,10 +3641,15 @@ static inline void mm_cid_put(struct mm_struct *mm)
 	__mm_cid_put(mm, mm_cid_clear_lazy_put(cid));
 }
 
-static inline int __mm_cid_try_get(struct mm_struct *mm)
+DECLARE_PER_CPU(struct mm_cid_dbg_t, mm_cid_dbg);
+
+static inline int __mm_cid_try_get(struct mm_struct *mm, int start)
 {
 	struct cpumask *cpumask;
 	int cid;
+	MmCidDbg *m = this_cpu_ptr(&mm_cid_dbg);
+
+	m->stage4 = start;
 
 	cpumask = mm_cidmask(mm);
 	/*
@@ -3650,12 +3657,16 @@ static inline int __mm_cid_try_get(struct mm_struct *mm)
 	 * filled. This only happens during concurrent remote-clear
 	 * which owns a cid without holding a rq lock.
 	 */
+	m->stage5 = 1;
 	for (;;) {
+		m->stage5++;
 		cid = cpumask_first_zero(cpumask);
 		if (cid < nr_cpu_ids)
 			break;
 		cpu_relax();
 	}
+	m->stage4 = start + 1;
+
 	if (cpumask_test_and_set_cpu(cid, cpumask))
 		return -1;
 
@@ -3677,23 +3688,26 @@ static inline void mm_cid_snapshot_time(struct rq *rq, struct mm_struct *mm)
 static inline int __mm_cid_get(struct rq *rq, struct mm_struct *mm)
 {
 	int cid;
+	MmCidDbg *m = this_cpu_ptr(&mm_cid_dbg);
 
+	m->stage2 = 1;
 	/*
 	 * All allocations (even those using the cid_lock) are lock-free. If
 	 * use_cid_lock is set, hold the cid_lock to perform cid allocation to
 	 * guarantee forward progress.
 	 */
 	if (!READ_ONCE(use_cid_lock)) {
-		cid = __mm_cid_try_get(mm);
+		cid = __mm_cid_try_get(mm, 100);
 		if (cid >= 0)
 			goto end;
 		raw_spin_lock(&cid_lock);
 	} else {
 		raw_spin_lock(&cid_lock);
-		cid = __mm_cid_try_get(mm);
+		cid = __mm_cid_try_get(mm, 1000);
 		if (cid >= 0)
 			goto unlock;
 	}
+	m->stage2 = 2;
 
 	/*
 	 * cid concurrently allocated. Retry while forcing following
@@ -3709,10 +3723,14 @@ static inline int __mm_cid_get(struct rq *rq, struct mm_struct *mm)
 	 * Retry until it succeeds. It is guaranteed to eventually succeed once
 	 * all newcoming allocations observe the use_cid_lock flag set.
 	 */
+	m->stage3 = 1;
 	do {
-		cid = __mm_cid_try_get(mm);
+		m->stage3++;
+		cid = __mm_cid_try_get(mm, 10000);
 		cpu_relax();
 	} while (cid < 0);
+
+	m->stage2 = 3;
 	/*
 	 * Allocate before clearing use_cid_lock. Only care about
 	 * program order because this is for forward progress.
@@ -3732,20 +3750,32 @@ static inline int mm_cid_get(struct rq *rq, struct mm_struct *mm)
 	struct mm_cid __percpu *pcpu_cid = mm->pcpu_cid;
 	struct cpumask *cpumask;
 	int cid;
+	MmCidDbg *m = this_cpu_ptr(&mm_cid_dbg);
+
+	m->mm = mm;
+	m->stage1 = 1;
 
 	lockdep_assert_rq_held(rq);
+	m->stage1  = 2;
 	cpumask = mm_cidmask(mm);
+	m->stage1  = 3;
 	cid = __this_cpu_read(pcpu_cid->cid);
+	m->stage1  = 4;
 	if (mm_cid_is_valid(cid)) {
+		m->stage1  = 5;
 		mm_cid_snapshot_time(rq, mm);
+		m->stage1  = 6;
 		return cid;
 	}
 	if (mm_cid_is_lazy_put(cid)) {
 		if (try_cmpxchg(&this_cpu_ptr(pcpu_cid)->cid, &cid, MM_CID_UNSET))
 			__mm_cid_put(mm, mm_cid_clear_lazy_put(cid));
 	}
+	m->stage1  = 7;
 	cid = __mm_cid_get(rq, mm);
+	m->stage1  = 8;
 	__this_cpu_write(pcpu_cid->cid, cid);
+	m->stage1  = 9;
 
 	return cid;
 }
@@ -3797,8 +3827,15 @@ static inline void switch_mm_cid(struct rq *rq,
 		mm_cid_put_lazy(prev);
 		prev->mm_cid = -1;
 	}
-	if (next->mm_cid_active)
+	if (next->mm_cid_active) {
+		MmCidDbg *m = this_cpu_ptr(&mm_cid_dbg);
+
+		memset(m, 0, sizeof(*m));
+		m->t1 = prev;
+		m->t2 = next;
 		next->last_mm_cid = next->mm_cid = mm_cid_get(rq, next->mm);
+		memset(m, 0, sizeof(*m));
+	}
 }
 
 #else /* !CONFIG_SCHED_MM_CID: */
