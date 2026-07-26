@@ -824,6 +824,8 @@ bool check_mm(struct mm_struct *mm)
 	BUILD_BUG_ON_MSG(ARRAY_SIZE(resident_page_types) != NR_MM_COUNTERS,
 			 "Please make sure 'struct resident_page_types[]' is updated as well");
 
+	tfw_mm_check_canary(mm, __func__);
+
 	for (i = 0; i < NR_MM_COUNTERS; i++) {
 		long x = percpu_counter_sum(&mm->rss_stat[i]);
 
@@ -1277,6 +1279,7 @@ static struct mm_struct *mm_init(struct mm_struct *mm, struct task_struct *p,
 	mm_pgtables_bytes_init(mm);
 	mm->map_count = 0;
 	mm->locked_vm = 0;
+	mm->canary1 = mm->canary2 = TFW_MM_CANARY;
 	atomic64_set(&mm->pinned_vm, 0);
 	memset(&mm->rss_stat, 0, sizeof(mm->rss_stat));
 	spin_lock_init(&mm->page_table_lock);

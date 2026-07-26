@@ -32,6 +32,8 @@
 struct address_space;
 struct mem_cgroup;
 
+#define TFW_MM_CANARY 0xdeadbeef
+
 /*
  * Each physical page in the system has a struct page associated with
  * it to keep track of whatever it is we are using the page for at the
@@ -955,7 +957,9 @@ struct mm_struct {
 
 		unsigned long saved_auxv[AT_VECTOR_SIZE]; /* for /proc/PID/auxv */
 
+		unsigned int canary1;
 		struct percpu_counter rss_stat[NR_MM_COUNTERS];
+		unsigned int canary2;
 
 		struct linux_binfmt *binfmt;
 

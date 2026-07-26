@@ -42,6 +42,8 @@ struct mm_struct init_mm = {
 #ifdef CONFIG_PER_VMA_LOCK
 	.mm_lock_seq	= 0,
 #endif
+	.canary1	= TFW_MM_CANARY,
+	.canary2	= TFW_MM_CANARY,
 	.user_ns	= &init_user_ns,
 	.cpu_bitmap	= CPU_BITS_NONE,
 	INIT_MM_CONTEXT(init_mm)

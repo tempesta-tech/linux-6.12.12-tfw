@@ -2584,11 +2584,63 @@ static inline bool get_user_page_fast_only(unsigned long addr,
 {
 	return get_user_pages_fast_only(addr, 1, gup_flags, pagep) == 1;
 }
+
+static inline void
+tfw_mm_check_canary(struct mm_struct *mm, const char *prefix)
+{
+	if (unlikely(READ_ONCE(mm->canary1) !=
+		     TFW_MM_CANARY))
+		printk(KERN_ALERT "%s BAD CANARY1 %px %u\n",
+			prefix, mm, mm->canary1);
+
+	if (READ_ONCE(mm->canary2) !=
+		     TFW_MM_CANARY)
+		printk(KERN_ALERT "%s BAD CANARY2 %px %u\n",
+			prefix, mm, mm->canary2);
+}
+
+static inline bool
+tfw_mm_check_rss_member(struct mm_struct *mm, int member)
+{
+	long x = percpu_counter_sum(&mm->rss_stat[member]);
+	bool rc = true;
+	#define NAMED_ARRAY_INDEX(x)	[x] = __stringify(x)
+	enum {
+		MM_FILEPAGES,	/* Resident file mapping pages */
+		MM_ANONPAGES,	/* Resident anonymous pages */
+		MM_SWAPENTS,	/* Anonymous swap entries */
+		MM_SHMEMPAGES,	/* Resident shared memory pages */
+		NR_MM_COUNTERS
+	};
+	static const char * const resident_page_types[] = {
+		NAMED_ARRAY_INDEX(MM_FILEPAGES),
+		NAMED_ARRAY_INDEX(MM_ANONPAGES),
+		NAMED_ARRAY_INDEX(MM_SWAPENTS),
+		NAMED_ARRAY_INDEX(MM_SHMEMPAGES),
+	};
+	#undef NAMED_ARRAY_INDEX
+
+	if (unlikely(x < 0)) {
+		printk(KERN_ALERT "BUG: Bad rss-counter state mm:%p type:%s val:%ld\n",
+			 mm, resident_page_types[member], x);
+		rc = false;
+	}
+
+	if (unlikely(x > 1000000)) {
+		printk(KERN_ALERT "BUG: Bad rss-counter state mm:%p type:%s val:%ld\n",
+			 mm, resident_page_types[member], x);
+		rc = false;
+	}
+
+	return rc;
+}
+
 /*
  * per-process(per-mm_struct) statistics.
  */
 static inline unsigned long get_mm_counter(struct mm_struct *mm, int member)
 {
+	tfw_mm_check_canary(mm, __func__);
 	return percpu_counter_read_positive(&mm->rss_stat[member]);
 }
 
@@ -2596,6 +2648,8 @@ void mm_trace_rss_stat(struct mm_struct *mm, int member);
 
 static inline void add_mm_counter(struct mm_struct *mm, int member, long value)
 {
+	tfw_mm_check_canary(mm, __func__);
+
 	percpu_counter_add(&mm->rss_stat[member], value);
 
 	mm_trace_rss_stat(mm, member);
@@ -2603,6 +2657,8 @@ static inline void add_mm_counter(struct mm_struct *mm, int member, long value)
 
 static inline void inc_mm_counter(struct mm_struct *mm, int member)
 {
+	tfw_mm_check_canary(mm, __func__);
+
 	percpu_counter_inc(&mm->rss_stat[member]);
 
 	mm_trace_rss_stat(mm, member);
@@ -2610,6 +2666,8 @@ static inline void inc_mm_counter(struct mm_struct *mm, int member)
 
 static inline void dec_mm_counter(struct mm_struct *mm, int member)
 {
+	tfw_mm_check_canary(mm, __func__);
+
 	percpu_counter_dec(&mm->rss_stat[member]);
 
 	mm_trace_rss_stat(mm, member);

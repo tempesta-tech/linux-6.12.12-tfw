@@ -72,6 +72,8 @@ struct mm_struct efi_mm = {
 	MMAP_LOCK_INITIALIZER(efi_mm)
 	.page_table_lock	= __SPIN_LOCK_UNLOCKED(efi_mm.page_table_lock),
 	.mmlist			= LIST_HEAD_INIT(efi_mm.mmlist),
+	.canary1		= TFW_MM_CANARY,
+	.canary2		= TFW_MM_CANARY,
 	.cpu_bitmap		= { [BITS_TO_LONGS(NR_CPUS)] = 0},
 };
 
