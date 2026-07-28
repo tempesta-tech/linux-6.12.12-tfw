@@ -833,6 +833,9 @@ bool check_mm(struct mm_struct *mm)
 			pr_alert("BUG: Bad rss-counter state mm:%p type:%s val:%ld\n",
 				 mm, resident_page_types[i], x);
 			rc = false;
+		} else if (unlikely(mm->error_was_found)) {
+			printk(KERN_ALERT "CHECK MM IN error_was_found %px %s %ld\n",
+				mm, resident_page_types[i], x);
 		}
 	}
 
@@ -1280,6 +1283,7 @@ static struct mm_struct *mm_init(struct mm_struct *mm, struct task_struct *p,
 	mm->map_count = 0;
 	mm->locked_vm = 0;
 	mm->canary1 = mm->canary2 = TFW_MM_CANARY;
+	mm->error_was_found = false;
 	atomic64_set(&mm->pinned_vm, 0);
 	memset(&mm->rss_stat, 0, sizeof(mm->rss_stat));
 	spin_lock_init(&mm->page_table_lock);
