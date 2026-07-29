@@ -830,8 +830,9 @@ bool check_mm(struct mm_struct *mm)
 		long x = percpu_counter_sum(&mm->rss_stat[i]);
 
 		if (unlikely(x)) {
-			pr_alert("BUG: Bad rss-counter state mm:%p type:%s val:%ld\n",
-				 mm, resident_page_types[i], x);
+			pr_alert("BUG: Bad rss-counter state mm:%p type:%s val:%ld | error_was_found %d\n",
+				 mm, resident_page_types[i], x,
+				 mm->error_was_found);
 			rc = false;
 		} else if (unlikely(mm->error_was_found)) {
 			printk(KERN_ALERT "CHECK MM IN error_was_found %px %s %ld\n",
