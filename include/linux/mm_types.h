@@ -960,6 +960,7 @@ struct mm_struct {
 		unsigned int canary1;
 		struct percpu_counter rss_stat[NR_MM_COUNTERS];
 		unsigned int canary2;
+		unsigned int canary3;
 		bool error_was_found;
 
 		struct linux_binfmt *binfmt;

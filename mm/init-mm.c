@@ -44,6 +44,7 @@ struct mm_struct init_mm = {
 #endif
 	.canary1	= TFW_MM_CANARY,
 	.canary2	= TFW_MM_CANARY,
+	.canary3	= TFW_MM_CANARY,
 	.user_ns	= &init_user_ns,
 	.cpu_bitmap	= CPU_BITS_NONE,
 	INIT_MM_CONTEXT(init_mm)

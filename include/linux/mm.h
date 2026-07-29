@@ -2650,10 +2650,15 @@ static inline void add_mm_counter(struct mm_struct *mm, int member, long value)
 {
 	tfw_mm_check_canary(mm, __func__);
 
+	if (value < -1000000 || value > 1000000)
+		printk(KERN_ALERT "add_mm_counter %ld", value);
+
 	percpu_counter_add(&mm->rss_stat[member], value);
 
 	mm_trace_rss_stat(mm, member);
 }
+
+int install_rss_watchpoint(struct mm_struct *mm, unsigned member);
 
 static inline void inc_mm_counter(struct mm_struct *mm, int member)
 {

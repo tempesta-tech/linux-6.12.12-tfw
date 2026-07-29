@@ -113,6 +113,13 @@
 #include <asm/cacheflush.h>
 #include <asm/tlbflush.h>
 
+#include <linux/perf_event.h>
+#include <linux/hw_breakpoint.h>
+#include <linux/sched.h>      /* current */
+#include <linux/ptrace.h>     /* struct pt_regs, instruction_pointer() */
+#include <linux/printk.h>     /* pr_* */
+#include <linux/err.h>
+
 #include <trace/events/sched.h>
 
 #define CREATE_TRACE_POINTS
@@ -148,6 +155,77 @@ static const char * const resident_page_types[] = {
 };
 
 DEFINE_PER_CPU(unsigned long, process_counts) = 0;
+
+static struct perf_event * __percpu *rss_bp;
+static struct mm_struct *watched_mm;
+static void *watched_addr;
+
+static void rss_bp_handler(struct perf_event *bp,
+			   struct perf_sample_data *data,
+			   struct pt_regs *regs)
+{
+	pr_emerg("RSS WATCH HIT: mm=%px addr=%px current=%s/%d "
+		 "cpu=%d ip=%pS value=%#llx\n",
+		 watched_mm, watched_addr,
+		 current->comm, current->pid,
+		 raw_smp_processor_id(),
+		 (void *)instruction_pointer(regs),
+		 READ_ONCE(*(u64 *)watched_addr));
+
+	dump_stack();
+}
+
+int install_rss_watchpoint(struct mm_struct *mm, unsigned member)
+{
+	struct perf_event_attr attr;
+	s32 *ptr;
+
+	if (rss_bp)
+		return -EBUSY;
+
+	ptr = per_cpu_ptr(mm->rss_stat[member].counters, 0);
+
+	hw_breakpoint_init(&attr);
+	attr.bp_addr = (unsigned long)ptr;
+	attr.bp_len = HW_BREAKPOINT_LEN_8;
+	attr.bp_type = HW_BREAKPOINT_W;
+
+	watched_mm = mm;
+	watched_addr = ptr;
+
+	rss_bp = register_wide_hw_breakpoint(&attr,
+					    rss_bp_handler,
+					    NULL);
+	if (IS_ERR(rss_bp)) {
+		int error = PTR_ERR(rss_bp);
+
+		rss_bp = NULL;
+		watched_mm = NULL;
+		watched_addr = NULL;
+		return error;
+	}
+
+	pr_alert("Watching RSS: mm=%px addr=%px counters=%px\n",
+		 mm, ptr,
+		 mm->rss_stat[member].counters);
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(install_rss_watchpoint);
+
+static void remove_rss_watchpoint(struct mm_struct *mm)
+{
+	if (mm != watched_mm)
+		return;
+
+	if (rss_bp) {
+		unregister_wide_hw_breakpoint(rss_bp);
+		rss_bp = NULL;
+	}
+
+	watched_mm = NULL;
+	watched_addr = NULL;
+}
 
 __cacheline_aligned DEFINE_RWLOCK(tasklist_lock);  /* outer */
 
@@ -928,6 +1006,8 @@ void __mmdrop(struct mm_struct *mm)
 	BUG_ON(mm == &init_mm);
 	WARN_ON_ONCE(mm == current->mm);
 
+	remove_rss_watchpoint(mm);
+
 	/* Ensure no CPUs are using this as their lazy tlb mm */
 	cleanup_lazy_tlbs(mm);
 
@@ -941,6 +1021,7 @@ void __mmdrop(struct mm_struct *mm)
 	mm_destroy_cid(mm);
 	percpu_counter_destroy_many(mm->rss_stat, NR_MM_COUNTERS);
 
+	mm->canary3 = 0xffffff;
 	free_mm(mm);
 }
 EXPORT_SYMBOL_GPL(__mmdrop);
@@ -1283,7 +1364,7 @@ static struct mm_struct *mm_init(struct mm_struct *mm, struct task_struct *p,
 	mm_pgtables_bytes_init(mm);
 	mm->map_count = 0;
 	mm->locked_vm = 0;
-	mm->canary1 = mm->canary2 = TFW_MM_CANARY;
+	mm->canary1 = mm->canary2 = mm->canary3 = TFW_MM_CANARY;
 	mm->error_was_found = false;
 	atomic64_set(&mm->pinned_vm, 0);
 	memset(&mm->rss_stat, 0, sizeof(mm->rss_stat));
