@@ -2597,6 +2597,11 @@ tfw_mm_check_canary(struct mm_struct *mm, const char *prefix)
 		     TFW_MM_CANARY)
 		printk(KERN_ALERT "%s BAD CANARY2 %px %u\n",
 			prefix, mm, mm->canary2);
+
+	if (READ_ONCE(mm->canary3) !=
+		     TFW_MM_CANARY)
+		printk(KERN_ALERT "%s BAD CANARY3 %px %u\n",
+			prefix, mm, mm->canary3);
 }
 
 static inline bool

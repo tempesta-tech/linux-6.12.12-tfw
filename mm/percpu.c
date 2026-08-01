@@ -109,6 +109,44 @@
 #define PCPU_EMPTY_POP_PAGES_LOW	2
 #define PCPU_EMPTY_POP_PAGES_HIGH	4
 
+
+
+#define PCPU_OWNER_HISTORY_SIZE	20000
+#define PCPU_OWNER_STACK_DEPTH	12
+
+enum pcpu_owner_action {
+	PCPU_OWNER_ALLOC,
+	PCPU_OWNER_FREE,
+};
+
+struct pcpu_owner_event {
+	enum pcpu_owner_action	action;
+
+	void __percpu		*ptr;
+	void			*cpu0_begin;
+	void			*cpu0_end;
+	size_t			size;
+	size_t			align;
+
+	pid_t			pid;
+	char			comm[TASK_COMM_LEN];
+	int			cpu;
+
+	u64			timestamp_ns;
+	unsigned long		caller;
+
+	unsigned int		nr_entries;
+	unsigned long		stack[PCPU_OWNER_STACK_DEPTH];
+};
+
+static struct pcpu_owner_event pcpu_owner_history[PCPU_OWNER_HISTORY_SIZE];
+static unsigned int pcpu_owner_head;
+static DEFINE_SPINLOCK(pcpu_owner_lock);
+
+
+
+
+
 #ifdef CONFIG_SMP
 /* default addr <-> pcpu_ptr mapping, override in asm/percpu.h if necessary */
 #ifndef __addr_to_pcpu_ptr
@@ -1725,6 +1763,113 @@ static void pcpu_alloc_tag_free_hook(struct pcpu_chunk *chunk, int off, size_t s
 }
 #endif
 
+static void
+debug_record_pcpu_event(enum pcpu_owner_action action,
+			void __percpu *ptr,
+			size_t size,
+			size_t align,
+			unsigned long caller)
+{
+	struct pcpu_owner_event local = {};
+	unsigned long flags;
+	unsigned int index;
+	char *cpu0;
+
+	if (!ptr)
+		return;
+
+	cpu0 = per_cpu_ptr(ptr, 0);
+
+	local.action = action;
+	local.ptr = ptr;
+	local.cpu0_begin = cpu0;
+	local.cpu0_end = cpu0 + size;
+	local.size = size;
+	local.align = align;
+
+	local.pid = READ_ONCE(current->pid);
+
+	/*
+	 * Do not use get_task_comm() here. free_percpu() may run from
+	 * softirq/RCU callback context, where taking task_lock(current)
+	 * may deadlock if the interrupted task already holds it.
+	 */
+	memcpy(local.comm, current->comm, TASK_COMM_LEN);
+	local.comm[TASK_COMM_LEN - 1] = '\0';
+
+	local.cpu = raw_smp_processor_id();
+	local.timestamp_ns = ktime_get_mono_fast_ns();
+	local.caller = caller;
+
+	local.nr_entries = stack_trace_save(local.stack,
+					    ARRAY_SIZE(local.stack),
+					    1);
+
+	spin_lock_irqsave(&pcpu_owner_lock, flags);
+
+	index = pcpu_owner_head++ % PCPU_OWNER_HISTORY_SIZE;
+	pcpu_owner_history[index] = local;
+
+	spin_unlock_irqrestore(&pcpu_owner_lock, flags);
+}
+
+void
+debug_dump_pcpu_history(void __percpu *target)
+{
+	struct pcpu_owner_event event;
+	unsigned long flags;
+	unsigned int head;
+	unsigned int count;
+	unsigned int n;
+
+	spin_lock_irqsave(&pcpu_owner_lock, flags);
+	head = pcpu_owner_head;
+	count = min_t(unsigned int, head, PCPU_OWNER_HISTORY_SIZE);
+	spin_unlock_irqrestore(&pcpu_owner_lock, flags);
+
+	pr_emerg("PCPU HISTORY FOR ptr=%px head=%u count=%u\n",
+		 target, head, count);
+
+	for (n = 0; n < count; n++) {
+		unsigned int index;
+		bool matched = false;
+
+		index = (head - count + n) % PCPU_OWNER_HISTORY_SIZE;
+
+		spin_lock_irqsave(&pcpu_owner_lock, flags);
+
+		if (pcpu_owner_history[index].ptr == target) {
+			event = pcpu_owner_history[index];
+			matched = true;
+		}
+
+		spin_unlock_irqrestore(&pcpu_owner_lock, flags);
+
+		if (!matched)
+			continue;
+
+		pr_emerg("  %s ptr=%px cpu0=[%px-%px) "
+			 "size=%zu align=%zu task=%s/%d cpu=%d "
+			 "time=%llu caller=%pS\n",
+			 event.action == PCPU_OWNER_ALLOC
+				? "ALLOC" : "FREE",
+			 event.ptr,
+			 event.cpu0_begin,
+			 event.cpu0_end,
+			 event.size,
+			 event.align,
+			 event.comm,
+			 event.pid,
+			 event.cpu,
+			 event.timestamp_ns,
+			 (void *)event.caller);
+
+		stack_trace_print(event.stack,
+				  event.nr_entries, 0);
+	}
+}
+EXPORT_SYMBOL(debug_dump_pcpu_history);
+
 /**
  * pcpu_alloc - the percpu allocator
  * @size: size of area to allocate in bytes
@@ -1908,6 +2053,11 @@ area_found:
 	pcpu_memcg_post_alloc_hook(objcg, chunk, off, size);
 
 	pcpu_alloc_tag_alloc_hook(chunk, off, size);
+
+	if (ptr)
+		debug_record_pcpu_event(PCPU_OWNER_ALLOC,
+				ptr, size, align,
+				(unsigned long)_RET_IP_);
 
 	return ptr;
 
@@ -2270,6 +2420,10 @@ void free_percpu(void __percpu *ptr)
 	trace_percpu_free_percpu(chunk->base_addr, off, ptr);
 
 	spin_unlock_irqrestore(&pcpu_lock, flags);
+
+	debug_record_pcpu_event(PCPU_OWNER_FREE,
+			ptr, size, 0,
+			(unsigned long)_RET_IP_);
 
 	if (need_balance)
 		pcpu_schedule_balance_work();

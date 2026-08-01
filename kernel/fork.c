@@ -903,12 +903,15 @@ bool check_mm(struct mm_struct *mm)
 			 "Please make sure 'struct resident_page_types[]' is updated as well");
 
 	tfw_mm_check_canary(mm, __func__);
+	
+	if (!debug_check_rss_counter_ptrs(mm))
+		printk(KERN_ALERT "INVALID COUNTERS %px\n", mm);
 
 	for (i = 0; i < NR_MM_COUNTERS; i++) {
 		long x = percpu_counter_sum(&mm->rss_stat[i]);
 
 		if (unlikely(x)) {
-			pr_alert("BUG: Bad rss-counter state mm:%p type:%s val:%ld | error_was_found %d\n",
+			pr_alert("BUG: Bad rss-counter state mm:%px type:%s val:%ld | error_was_found %d\n",
 				 mm, resident_page_types[i], x,
 				 mm->error_was_found);
 			rc = false;
@@ -1364,6 +1367,7 @@ static struct mm_struct *mm_init(struct mm_struct *mm, struct task_struct *p,
 	mm_pgtables_bytes_init(mm);
 	mm->map_count = 0;
 	mm->locked_vm = 0;
+	mm->rss_counters_original = NULL;
 	mm->canary1 = mm->canary2 = mm->canary3 = TFW_MM_CANARY;
 	mm->error_was_found = false;
 	atomic64_set(&mm->pinned_vm, 0);
@@ -1404,6 +1408,7 @@ static struct mm_struct *mm_init(struct mm_struct *mm, struct task_struct *p,
 				     NR_MM_COUNTERS))
 		goto fail_pcpu;
 
+	mm->rss_counters_original = READ_ONCE(mm->rss_stat[0].counters);
 	mm->user_ns = get_user_ns(user_ns);
 	lru_gen_init_mm(mm);
 	return mm;

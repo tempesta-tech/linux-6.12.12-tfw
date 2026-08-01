@@ -958,6 +958,7 @@ struct mm_struct {
 		unsigned long saved_auxv[AT_VECTOR_SIZE]; /* for /proc/PID/auxv */
 
 		unsigned int canary1;
+		s32 __percpu *rss_counters_original;
 		struct percpu_counter rss_stat[NR_MM_COUNTERS];
 		unsigned int canary2;
 		unsigned int canary3;
@@ -1078,6 +1079,38 @@ struct mm_struct {
 #define MM_MT_FLAGS	(MT_FLAGS_ALLOC_RANGE | MT_FLAGS_LOCK_EXTERN | \
 			 MT_FLAGS_USE_RCU)
 extern struct mm_struct init_mm;
+
+static inline bool
+debug_check_rss_counter_ptrs(struct mm_struct *mm)
+{
+	s32 __percpu *base;
+	bool valid = true;
+	int i;
+
+	base = READ_ONCE(mm->rss_counters_original);
+
+	for (i = 0; i < NR_MM_COUNTERS; i++) {
+		s32 __percpu *expected;
+		s32 __percpu *actual;
+
+		expected = (void __percpu *)base +
+			   i * ALIGN(sizeof(*base), __alignof__(*base));
+
+		actual = READ_ONCE(mm->rss_stat[i].counters);
+
+		if (likely(actual == expected))
+			continue;
+
+		pr_emerg("RSS COUNTER POINTER CHANGED: "
+			 "mm=%px member=%d base=%px "
+			 "expected=%px actual=%px\n",
+			 mm, i, base, expected, actual);
+
+		valid = false;
+	}
+
+	return valid;
+}
 
 /* Pointer magic because the dynamic array size confuses some compilers. */
 static inline void mm_init_cpumask(struct mm_struct *mm)

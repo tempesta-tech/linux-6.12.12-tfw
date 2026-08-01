@@ -13,6 +13,9 @@
 
 #include <asm/percpu.h>
 
+void
+debug_dump_pcpu_history(void __percpu *target);
+
 /* enough to cover all DEFINE_PER_CPUs in modules */
 #ifdef CONFIG_MODULES
 #ifdef CONFIG_MEM_ALLOC_PROFILING
